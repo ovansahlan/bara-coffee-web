@@ -213,6 +213,13 @@ ALTER TABLE public.cash_advances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_advance_repayments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payrolls ENABLE ROW LEVEL SECURITY;
 
+-- Pastikan role service_role memiliki hak akses penuh pada seluruh tabel & sequence
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
+
 -- Data Awal (Aman dijalankan berulang kali)
 INSERT INTO public.app_settings (id, owner_pin, require_owner_pin_for_correction, expense_categories)
 VALUES (1, '9999', FALSE, '["Minuman","Makanan","Lain-Lain"]'::jsonb)
