@@ -38,8 +38,8 @@ export async function DELETE(
     }
 
     await deleteCashDropById(drop);
-    await cascadeRunningBalancesInDb(drop.outletId);
-    const updatedShift = await fetchSingleHydratedShift(drop.outletId, drop.date, drop.shift);
+    const cascaded = await cascadeRunningBalancesInDb(drop.outletId, { includeCorrections: true });
+    const updatedShift = cascaded.find((s) => s.id === drop.shiftId) || null;
     return NextResponse.json({ ok: true, shift: updatedShift });
   } catch (err) {
     return NextResponse.json(

@@ -326,6 +326,7 @@ export async function fetchHydratedShifts(params: {
   outletId?: string | null;
   fromDate?: string | null;
   toDate?: string | null;
+  includeCorrections?: boolean;
 }): Promise<ShiftRecord[]> {
   if (isLocalDbEnabled()) {
     const local = readLocalDb();
@@ -412,24 +413,22 @@ export async function fetchHydratedShifts(params: {
   }
 
   const db = getSupabaseAdmin();
+  const includeCorrections = params.includeCorrections !== false;
 
-  // Paginated queries avoid Supabase's 1,000-row limit and large .in() URL limits
-  const shiftRows = await fetchAllSupabaseRows((from, to) => {
-    let q = db
-      .from('shifts')
-      .select('*')
-      .order('date', { ascending: false })
-      .order('shift', { ascending: false })
-      .range(from, to);
-    if (params.outletId) q = q.eq('outlet_id', params.outletId);
-    if (params.fromDate) q = q.gte('date', params.fromDate);
-    if (params.toDate) q = q.lte('date', params.toDate);
-    return q;
-  });
-
-  if (shiftRows.length === 0) return [];
-
-  const [expRows, dropRows, corrRows, advRows] = await Promise.all([
+  // Run parent shifts + child tables in ONE parallel wave (1 round-trip)
+  const [shiftRows, expRows, dropRows, corrRows, advRows] = await Promise.all([
+    fetchAllSupabaseRows((from, to) => {
+      let q = db
+        .from('shifts')
+        .select('*')
+        .order('date', { ascending: false })
+        .order('shift', { ascending: false })
+        .range(from, to);
+      if (params.outletId) q = q.eq('outlet_id', params.outletId);
+      if (params.fromDate) q = q.gte('date', params.fromDate);
+      if (params.toDate) q = q.lte('date', params.toDate);
+      return q;
+    }),
     fetchAllSupabaseRows((from, to) => {
       let q = db.from('expenses').select('*').order('created_at', { ascending: true }).range(from, to);
       if (params.outletId) q = q.eq('outlet_id', params.outletId);
@@ -444,13 +443,15 @@ export async function fetchHydratedShifts(params: {
       if (params.toDate) q = q.lte('date', params.toDate);
       return q;
     }),
-    fetchAllSupabaseRows((from, to) => {
-      let q = db.from('correction_logs').select('*').order('created_at', { ascending: false }).range(from, to);
-      if (params.outletId) q = q.eq('outlet_id', params.outletId);
-      if (params.fromDate) q = q.gte('date', params.fromDate);
-      if (params.toDate) q = q.lte('date', params.toDate);
-      return q;
-    }),
+    includeCorrections
+      ? fetchAllSupabaseRows((from, to) => {
+          let q = db.from('correction_logs').select('*').order('created_at', { ascending: false }).range(from, to);
+          if (params.outletId) q = q.eq('outlet_id', params.outletId);
+          if (params.fromDate) q = q.gte('date', params.fromDate);
+          if (params.toDate) q = q.lte('date', params.toDate);
+          return q;
+        })
+      : Promise.resolve([]),
     fetchAllSupabaseRows((from, to) => {
       let q = db.from('cash_advances').select('shift_id, drawer_amount').gt('drawer_amount', 0).range(from, to);
       if (params.outletId) q = q.eq('outlet_id', params.outletId);
@@ -459,6 +460,8 @@ export async function fetchHydratedShifts(params: {
       return q;
     }),
   ]);
+
+  if (shiftRows.length === 0) return [];
 
   const expByShift = new Map<string, ExpenseRecord[]>();
   expRows.forEach((r: any) => {
@@ -543,11 +546,8 @@ export async function fetchSingleHydratedShift(
   }
 
   const db = getSupabaseAdmin();
-  const { data: row, error } = await db.from('shifts').select('*').eq('id', id).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!row) return null;
-
-  const [expRows, dropRows, corrRows, advRows] = await Promise.all([
+  const [shiftRes, expRows, dropRows, corrRows, advRows] = await Promise.all([
+    db.from('shifts').select('*').eq('id', id).maybeSingle(),
     fetchAllSupabaseRows((from, to) =>
       db.from('expenses').select('*').eq('shift_id', id).order('created_at', { ascending: true }).range(from, to)
     ),
@@ -566,6 +566,9 @@ export async function fetchSingleHydratedShift(
       db.from('cash_advances').select('drawer_amount').eq('shift_id', id).gt('drawer_amount', 0).range(from, to)
     ),
   ]);
+  if (shiftRes.error) throw new Error(shiftRes.error.message);
+  if (!shiftRes.data) return null;
+  const row = shiftRes.data;
 
   const drawerKasbon = advRows.reduce((s, r: any) => s + Number(r.drawer_amount || 0), 0);
 
@@ -1165,13 +1168,13 @@ export async function syncShiftCashDropsForCorrection(params: {
   return totalDrops;
 }
 
-export async function getPreviousBalanceForShift(
-  outletId: string,
+export function computePreviousBalanceFromShifts(
+  shifts: ShiftRecord[],
   date: string,
-  shift: 1 | 2
-): Promise<PreviousBalanceInfo> {
-  const allOutletShifts = await fetchHydratedShifts({ outletId, toDate: date });
-  const preceding = allOutletShifts
+  shift: 1 | 2,
+  defaultOpeningCash = 0
+): PreviousBalanceInfo {
+  const preceding = shifts
     .filter((r) => r.date < date || (r.date === date && r.shift < shift))
     .sort((a, b) => {
       if (a.date !== b.date) return b.date.localeCompare(a.date);
@@ -1191,12 +1194,23 @@ export async function getPreviousBalanceForShift(
     };
   }
 
-  const outlet = await getOutletById(outletId);
   return {
     found: false,
     label: 'Saldo Awal Pertama Outlet',
-    amount: outlet?.defaultOpeningCash || 0,
+    amount: defaultOpeningCash,
   };
+}
+
+export async function getPreviousBalanceForShift(
+  outletId: string,
+  date: string,
+  shift: 1 | 2
+): Promise<PreviousBalanceInfo> {
+  const [allOutletShifts, outlet] = await Promise.all([
+    fetchHydratedShifts({ outletId, toDate: date, includeCorrections: false }),
+    getOutletById(outletId),
+  ]);
+  return computePreviousBalanceFromShifts(allOutletShifts, date, shift, outlet?.defaultOpeningCash || 0);
 }
 
 export async function getShift1RefInfo(outletId: string, date: string): Promise<Shift1RefInfo> {
@@ -1218,9 +1232,12 @@ export async function getShift1RefInfo(outletId: string, date: string): Promise<
   };
 }
 
-export async function cascadeRunningBalancesInDb(outletId: string): Promise<void> {
+export async function cascadeRunningBalancesInDb(
+  outletId: string,
+  options?: { includeCorrections?: boolean }
+): Promise<ShiftRecord[]> {
   const [shifts, outlet] = await Promise.all([
-    fetchHydratedShifts({ outletId }),
+    fetchHydratedShifts({ outletId, includeCorrections: options?.includeCorrections ?? false }),
     getOutletById(outletId),
   ]);
   const defaultOpeningCash = outlet?.defaultOpeningCash || 0;
@@ -1236,6 +1253,7 @@ export async function cascadeRunningBalancesInDb(outletId: string): Promise<void
   const local = isLocalDbEnabled() ? readLocalDb() : null;
   const db = isLocalDbEnabled() ? null : getSupabaseAdmin();
   let localMutated = false;
+  const pendingDbUpdates: Array<PromiseLike<unknown>> = [];
 
   let prevClosing: number | null = null;
   for (let i = 0; i < asc.length; i++) {
@@ -1292,14 +1310,18 @@ export async function cascadeRunningBalancesInDb(outletId: string): Promise<void
         }
       } else if (db) {
         updates.updated_at = nowIso;
-        await db.from('shifts').update(updates).eq('id', r.id);
+        pendingDbUpdates.push(db.from('shifts').update(updates).eq('id', r.id));
       }
     }
 
     prevClosing = calcShiftMetrics(r).closingCash;
   }
 
+  if (pendingDbUpdates.length > 0) {
+    await Promise.all(pendingDbUpdates);
+  }
   if (local && localMutated) {
     writeLocalDb(local);
   }
+  return asc;
 }

@@ -52,8 +52,8 @@ export async function POST(req: Request) {
       existingShift,
     });
 
-    await cascadeRunningBalancesInDb(outletId);
-    const updatedShift = await fetchSingleHydratedShift(outletId, date, shiftNum);
+    const cascaded = await cascadeRunningBalancesInDb(outletId, { includeCorrections: true });
+    const updatedShift = cascaded.find((s) => s.id === shiftId) || null;
     return NextResponse.json({ ok: true, shift: updatedShift });
   } catch (err) {
     return NextResponse.json(

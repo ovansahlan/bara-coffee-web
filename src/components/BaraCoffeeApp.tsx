@@ -263,18 +263,14 @@ export default function BaraCoffeeApp() {
       <header className="sticky top-0 z-30 bg-[var(--background)]/95 backdrop-blur border-b border-[var(--border)]">
         <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] flex items-center justify-center shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
-                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
-                <path d="M6 2v3" />
-                <path d="M10 2v3" />
-                <path d="M14 2v3" />
-              </svg>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/bara-logo.png"
+              alt="Bara Coffee"
+              className="h-7 sm:h-8 w-auto object-contain rounded-md bg-white px-1.5 py-0.5 border border-[var(--card-border)] shrink-0"
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="text-sm sm:text-base font-semibold tracking-tight leading-tight">Bara Coffee</h1>
                 <span
                   className={`px-2 py-0.5 rounded-md text-[11px] truncate max-w-[140px] sm:max-w-none ${
                     isOwner

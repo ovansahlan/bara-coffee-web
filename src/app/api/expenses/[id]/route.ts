@@ -39,8 +39,8 @@ export async function DELETE(
     }
 
     await deleteExpenseById(exp);
-    await cascadeRunningBalancesInDb(exp.outletId);
-    const updatedShift = await fetchSingleHydratedShift(exp.outletId, exp.date, exp.shift);
+    const cascaded = await cascadeRunningBalancesInDb(exp.outletId, { includeCorrections: true });
+    const updatedShift = cascaded.find((s) => s.id === exp.shiftId) || null;
     return NextResponse.json({ ok: true, shift: updatedShift });
   } catch (err) {
     return NextResponse.json(

@@ -259,21 +259,17 @@ export default function LoginView({ onSuccess }: LoginViewProps) {
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm sm:max-w-md space-y-3.5">
         {/* Compact Brand Header */}
-        <div className="flex items-center justify-between px-1">
+        <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] flex items-center justify-center shrink-0">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
-                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
-                <path d="M6 2v3" />
-                <path d="M10 2v3" />
-                <path d="M14 2v3" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-base font-semibold tracking-tight leading-tight">Bara Coffee</h1>
-              <p className="text-[11px] text-[var(--muted-foreground)]">Portal Kru, Kasir &amp; Owner</p>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/bara-logo.png"
+              alt="Bara Coffee"
+              className="h-9 sm:h-10 w-auto object-contain rounded-lg bg-white px-2 py-1 border border-[var(--card-border)] shrink-0"
+            />
+            <p className="text-[11px] font-medium text-[var(--muted-foreground)] leading-tight">
+              Portal Kru, Kasir &amp; Owner
+            </p>
           </div>
           {!loading && (
             <span

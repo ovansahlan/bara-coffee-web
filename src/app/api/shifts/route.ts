@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { getSession, safeComparePin } from '@/lib/session';
 import {
   cascadeRunningBalancesInDb,
+  computePreviousBalanceFromShifts,
   fetchHydratedShifts,
   fetchSingleHydratedShift,
   getAppSettings,
+  getOutletById,
   getPreviousBalanceForShift,
   getShift1RefInfo,
   insertCorrectionLog,
@@ -43,20 +45,50 @@ export async function GET(req: Request) {
     const date = searchParams.get('date');
     const shiftParam = searchParams.get('shift');
 
-    // Mode 1: Single shift detail + running previous balance + Shift 1 ref + day shift statuses
+    // Mode 1: Single shift detail + running previous balance + Shift 1 ref + day shift statuses (1 parallel DB wave)
     if (outletId && date && (shiftParam === '1' || shiftParam === '2')) {
       const shiftNum = Number(shiftParam) as 1 | 2;
-      const [existing, previousBalance, shift1Ref, dayShifts] = await Promise.all([
-        fetchSingleHydratedShift(outletId, date, shiftNum),
-        getPreviousBalanceForShift(outletId, date, shiftNum),
-        shiftNum === 2 ? getShift1RefInfo(outletId, date) : Promise.resolve(null),
-        fetchHydratedShifts({ outletId, fromDate: date, toDate: date }),
+      const [allToDate, outlet] = await Promise.all([
+        fetchHydratedShifts({ outletId, toDate: date }),
+        getOutletById(outletId),
       ]);
 
+      const targetId = makeShiftId(outletId, date, shiftNum);
+      const existing = allToDate.find((s) => s.id === targetId) || null;
+      const previousBalance = computePreviousBalanceFromShifts(
+        allToDate,
+        date,
+        shiftNum,
+        outlet?.defaultOpeningCash || 0
+      );
+
+      let shift1Ref = null;
+      if (shiftNum === 2) {
+        const s1 = allToDate.find((s) => s.date === date && s.shift === 1) || null;
+        if (s1) {
+          const m1 = calcShiftMetrics(s1);
+          shift1Ref = {
+            found: true,
+            breakdown: s1.breakdown,
+            totalOmset: m1.totalOmset,
+            expenses: s1.expenses,
+          };
+        } else {
+          shift1Ref = {
+            found: false,
+            breakdown: { tunai: 0, qris: 0, online: 0, edc: 0 },
+            totalOmset: 0,
+            expenses: [],
+          };
+        }
+      }
+
       const dayStatuses: Record<number, string> = {};
-      dayShifts.forEach((s) => {
-        dayStatuses[s.shift] = calcShiftMetrics(s).status;
-      });
+      allToDate
+        .filter((s) => s.date === date)
+        .forEach((s) => {
+          dayStatuses[s.shift] = calcShiftMetrics(s).status;
+        });
 
       const shiftRecord: ShiftRecord = existing || {
         id: makeShiftId(outletId, date, shiftNum),
@@ -296,10 +328,18 @@ export async function PUT(req: Request) {
     }
 
     // Cascade cumulative running balances & Shift 2 cumulative POS across subsequent shifts
-    await cascadeRunningBalancesInDb(outletId);
+    const [cascaded, outlet] = await Promise.all([
+      cascadeRunningBalancesInDb(outletId, { includeCorrections: true }),
+      getOutletById(outletId),
+    ]);
 
-    const finalShift = await fetchSingleHydratedShift(outletId, date, shiftNum);
-    const updatedPrev = await getPreviousBalanceForShift(outletId, date, shiftNum);
+    const finalShift = cascaded.find((s) => s.id === shiftId) || null;
+    const updatedPrev = computePreviousBalanceFromShifts(
+      cascaded,
+      date,
+      shiftNum,
+      outlet?.defaultOpeningCash || 0
+    );
     return NextResponse.json({
       ok: true,
       shift: finalShift,

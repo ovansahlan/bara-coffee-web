@@ -34,17 +34,23 @@ export async function POST(req: Request) {
     }
 
     const shiftId = makeShiftId(outletId, date, shiftNum);
-    const existingShift = await fetchSingleHydratedShift(outletId, date, shiftNum);
-    if (existingShift?.balanceChecked) {
-      return NextResponse.json(
-        { error: 'Shift sudah terkunci. Perubahan pengeluaran wajib disimpan melalui Mode Koreksi Shift.' },
-        { status: 423 }
-      );
-    }
+    let existingShift = null;
 
-    // Server-side cross-shift duplicate check across Shift 1 & Shift 2 on same outlet & date
+    // Server-side cross-shift duplicate check (reuses the same fetch for existingShift)
     if (!forceDuplicate) {
-      const todayShifts = await fetchHydratedShifts({ outletId, fromDate: date, toDate: date });
+      const todayShifts = await fetchHydratedShifts({
+        outletId,
+        fromDate: date,
+        toDate: date,
+        includeCorrections: false,
+      });
+      existingShift = todayShifts.find((s) => s.id === shiftId) || null;
+      if (existingShift?.balanceChecked) {
+        return NextResponse.json(
+          { error: 'Shift sudah terkunci. Perubahan pengeluaran wajib disimpan melalui Mode Koreksi Shift.' },
+          { status: 423 }
+        );
+      }
       const todayExpenses = todayShifts.flatMap((s) =>
         s.expenses.map((e) => ({ ...e, cashier: s.cashier }))
       );
@@ -57,6 +63,14 @@ export async function POST(req: Request) {
             message: 'Pengeluaran serupa sudah tercatat hari ini.',
           },
           { status: 409 }
+        );
+      }
+    } else {
+      existingShift = await fetchSingleHydratedShift(outletId, date, shiftNum);
+      if (existingShift?.balanceChecked) {
+        return NextResponse.json(
+          { error: 'Shift sudah terkunci. Perubahan pengeluaran wajib disimpan melalui Mode Koreksi Shift.' },
+          { status: 423 }
         );
       }
     }
@@ -73,8 +87,8 @@ export async function POST(req: Request) {
       existingShift,
     });
 
-    await cascadeRunningBalancesInDb(outletId);
-    const updatedShift = await fetchSingleHydratedShift(outletId, date, shiftNum);
+    const cascaded = await cascadeRunningBalancesInDb(outletId, { includeCorrections: true });
+    const updatedShift = cascaded.find((s) => s.id === shiftId) || null;
     return NextResponse.json({ ok: true, shift: updatedShift });
   } catch (err) {
     return NextResponse.json(

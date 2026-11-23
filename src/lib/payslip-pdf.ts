@@ -108,20 +108,20 @@ export function generatePayslipPdfBytes(input: PayslipPdfInput): Uint8Array {
     cmds.push(`${x1.toFixed(2)} ${(H - y1Top).toFixed(2)} m ${x2.toFixed(2)} ${(H - y2Top).toFixed(2)} l S`);
   };
 
-  const COFFEE: [number, number, number] = [0.549, 0.29, 0.153];
-  const DARK: [number, number, number] = [0.122, 0.098, 0.082];
-  const MUTED: [number, number, number] = [0.431, 0.384, 0.349];
-  const CREAM: [number, number, number] = [0.98, 0.973, 0.961];
-  const SAND: [number, number, number] = [0.945, 0.918, 0.882];
-  const BORDER: [number, number, number] = [0.875, 0.843, 0.8];
+  const COFFEE: [number, number, number] = [0.004, 0.149, 0.412];
+  const DARK: [number, number, number] = [0.043, 0.098, 0.2];
+  const MUTED: [number, number, number] = [0.345, 0.416, 0.522];
+  const CREAM: [number, number, number] = [0.961, 0.973, 0.988];
+  const SAND: [number, number, number] = [0.91, 0.941, 0.98];
+  const BORDER: [number, number, number] = [0.824, 0.867, 0.925];
   const WHITE: [number, number, number] = [1, 1, 1];
-  const GREEN: [number, number, number] = [0.118, 0.494, 0.29];
-  const RED: [number, number, number] = [0.753, 0.224, 0.169];
+  const GREEN: [number, number, number] = [0.082, 0.502, 0.239];
+  const RED: [number, number, number] = [0.863, 0.149, 0.149];
 
   // 1. Brand Header Banner
   fillRect(M, 36, CW, 72, COFFEE);
   drawText(M + 18, 63, 'BARA COFFEE', 18, true, WHITE, 'left');
-  drawText(M + 18, 82, 'SLIP GAJI KARYAWAN / OFFICIAL PAYSLIP', 9, false, [0.95, 0.9, 0.86], 'left');
+  drawText(M + 18, 82, 'SLIP GAJI KARYAWAN / OFFICIAL PAYSLIP', 9, false, [0.84, 0.89, 0.96], 'left');
   drawText(M + 18, 96, input.outletName, 9, true, WHITE, 'left');
 
   drawText(M + CW - 18, 62, input.periodLabel, 12, true, WHITE, 'right');
@@ -131,7 +131,7 @@ export function generatePayslipPdfBytes(input: PayslipPdfInput): Uint8Array {
     `${formatDateIndo(input.fromDate)} - ${formatDateIndo(input.toDate)}`,
     8.5,
     false,
-    [0.95, 0.9, 0.86],
+    [0.84, 0.89, 0.96],
     'right'
   );
   drawText(
