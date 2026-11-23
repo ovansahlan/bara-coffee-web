@@ -167,12 +167,14 @@ export default function OwnerExpensesView({ outlets, onToast }: OwnerExpensesVie
             <div>
               <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">Nominal (Rp)</label>
               <input
-                type="number"
-                min={1}
-                step={500}
-                placeholder="Contoh: 250000"
+                type="text"
+                inputMode="numeric"
+                placeholder="Contoh: 250.000"
                 value={amountInput}
-                onChange={(e) => setAmountInput(e.target.value)}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/[^\d]/g, '');
+                  setAmountInput(digits ? Number(digits).toLocaleString('id-ID') : '');
+                }}
                 required
                 className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm tabular-nums"
               />

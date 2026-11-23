@@ -121,6 +121,11 @@ export default function BaraCoffeeApp() {
   const [selectedShift, setSelectedShift] = useState<1 | 2>(1);
   const [hasUnsavedShiftChanges, setHasUnsavedShiftChanges] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [todayAttendanceStatus, setTodayAttendanceStatus] = useState<{
+    checkedIn: boolean;
+    checkedOut: boolean;
+    shift: 1 | 2 | 3 | null;
+  } | null>(null);
 
   const showToast = useCallback((msg: string, type: ToastState['type'] = 'success') => {
     setToast({ msg, type });
@@ -128,7 +133,7 @@ export default function BaraCoffeeApp() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3000);
+    const t = setTimeout(() => setToast(null), toast.type === 'warning' ? 5000 : 3000);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -146,6 +151,7 @@ export default function BaraCoffeeApp() {
       const nextOutlets: OutletPublic[] = data.outlets || [];
       setRole(nextRole);
       setCurrentEmployee(nextRole === 'crew' ? data.employee || null : null);
+      setTodayAttendanceStatus(nextRole === 'crew' ? data.todayAttendanceStatus || null : null);
       setOutlets(nextOutlets);
       if (data.settings) setSettings(data.settings);
       setSelectedOutletId((prev) => {
@@ -155,6 +161,12 @@ export default function BaraCoffeeApp() {
       if (resetTab) {
         setTab(nextRole === 'owner' ? 'owner' : 'input');
         setHasUnsavedShiftChanges(false);
+        if (nextRole === 'crew' && data.employee && !data.todayAttendanceStatus?.checkedIn) {
+          showToast(
+            `Halo ${data.employee.name}, Anda belum absen masuk hari ini. Jangan lupa absen di tab Absensi!`,
+            'warning'
+          );
+        }
       }
       setAuthenticated(true);
       return true;
@@ -180,6 +192,9 @@ export default function BaraCoffeeApp() {
   function handleSwitchTab(nextTab: ActiveTab) {
     if (nextTab === tab) return;
     if (!confirmDiscardIfDirty()) return;
+    if (tab === 'absensi' && role === 'crew') {
+      hydrateAuth(false);
+    }
     setHasUnsavedShiftChanges(false);
     setTab(nextTab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -205,14 +220,15 @@ export default function BaraCoffeeApp() {
 
   const toastNode = toast ? (
     <div
-      className={`fixed z-50 px-4 py-2.5 rounded-xl bg-[var(--card)] border border-[var(--border)] shadow-lg text-xs font-medium flex items-center gap-2 ${
-        authenticated
-          ? 'bottom-20 lg:bottom-5 left-4 right-4 sm:left-auto sm:right-5 sm:max-w-sm'
-          : 'bottom-5 left-4 right-4 sm:left-auto sm:right-5 sm:max-w-sm'
-      }`}
+      onClick={() => setToast(null)}
+      role="status"
+      className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-md px-4 py-3 rounded-xl bg-[var(--card)] border-2 border-[var(--border)] shadow-2xl text-xs sm:text-sm font-medium flex items-center justify-between gap-3 cursor-pointer"
     >
-      <span className={`w-2 h-2 rounded-full shrink-0 ${toastDotCls}`} />
-      <span className="leading-snug">{toast.msg}</span>
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${toastDotCls}`} />
+        <span className="leading-snug">{toast.msg}</span>
+      </div>
+      <span className="text-[var(--muted-foreground)] text-xs shrink-0">&times;</span>
     </div>
   ) : null;
 
@@ -370,6 +386,7 @@ export default function BaraCoffeeApp() {
             selectedShift={selectedShift}
             canSwitchOutlet={isOwner}
             defaultCashierName={isCrew ? currentEmployee?.name || '' : ''}
+            todayAttendanceStatus={todayAttendanceStatus}
             onChangeContext={(next) => {
               if (next.outletId && isOwner) {
                 setSelectedOutletId(next.outletId);

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getStorageMode, isStorageConfigured } from '@/lib/supabase';
 import { getSession, clearSessionCookie } from '@/lib/session';
+import { getLocalDateStr } from '@/lib/calc';
 import { getAppSettings, getOutletById, getOutletsPublic } from '@/lib/db';
-import { getEmployeeById } from '@/lib/hr-db';
+import { fetchAttendances, getEmployeeById } from '@/lib/hr-db';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,14 @@ export async function GET() {
         allOutlets[0] ||
         null;
 
+      const today = getLocalDateStr(0);
+      const todayAtts = await fetchAttendances({
+        employeeId: emp.id,
+        fromDate: today,
+        toDate: today,
+      }).catch(() => []);
+      const activeAtt = todayAtts[0] || null;
+
       return NextResponse.json({
         configured: true,
         authenticated: true,
@@ -72,6 +81,11 @@ export async function GET() {
           outletId: emp.outletId,
           payType: emp.payType,
           active: emp.active,
+        },
+        todayAttendanceStatus: {
+          checkedIn: Boolean(activeAtt?.checkInAt),
+          checkedOut: Boolean(activeAtt?.checkOutAt),
+          shift: activeAtt?.shift ?? null,
         },
         outlets: activeOutlet ? [activeOutlet] : allOutlets,
         settings: publicSettings,

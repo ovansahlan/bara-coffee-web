@@ -76,6 +76,7 @@ export default function OwnerDashboardView({
   const [ownerExpenses, setOwnerExpenses] = useState<OwnerExpenseRecord[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<ShiftRecord | null>(null);
   const [syncingSheet, setSyncingSheet] = useState(false);
+  const [detailTab, setDetailTab] = useState<'shifts' | 'expenses' | 'cashdrops' | 'audit'>('shifts');
 
   async function handleSyncGoogleSheet() {
     setSyncingSheet(true);
@@ -390,22 +391,26 @@ export default function OwnerDashboardView({
   }
 
   const totalPay = summary.tunai + summary.qris + summary.online + summary.edc;
+  const totalOwnerExpense = useMemo(
+    () => ownerExpenses.reduce((s, e) => s + e.amount, 0),
+    [ownerExpenses]
+  );
   const chartColors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Today Live Monitor */}
-      <section className="space-y-3">
+      <section className="space-y-2.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold">Pemantauan Hari Ini ({formatDateIndo(today)})</h2>
+            <h2 className="text-sm font-semibold">Hari Ini &middot; {formatDateIndo(today)}</h2>
             <p className="text-xs text-[var(--muted-foreground)]">
-              Status live Shift 1 &amp; Shift 2, omset hari ini, serta Saldo Kas Berjalan tiap outlet.
+              Pantauan omset, pengeluaran, &amp; saldo kas berjalan tiap outlet.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <span className="text-xs font-semibold tabular-nums px-3 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-              Total Omset Hari Ini: {formatRp(todayCombinedOmset)}
+              Omset Hari Ini: {formatRp(todayCombinedOmset)}
             </span>
             <button
               type="button"
@@ -425,172 +430,133 @@ export default function OwnerDashboardView({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {todayCards.map((c) => (
-            <div key={c.outlet.id} className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-semibold">{c.outlet.name}</h3>
-                  <p className="text-xs text-[var(--muted-foreground)]">{c.outlet.location || 'Outlet Bara Coffee'}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onOpenShift(c.outlet.id, today, c.suggestedShift)}
-                  className="px-2.5 py-1 rounded-lg border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-xs font-medium cursor-pointer"
-                >
-                  Audit &rarr;
-                </button>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 tabular-nums">
-                <div className="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--card-border)]">
-                  <div className="text-[11px] sm:text-xs text-[var(--muted-foreground)]">Omset Hari Ini</div>
-                  <div className="text-sm font-semibold mt-0.5">{formatRp(c.omsetToday)}</div>
-                </div>
-                <div className="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--card-border)]">
-                  <div className="text-[11px] sm:text-xs text-[var(--muted-foreground)]">Pengeluaran</div>
-                  <div className="text-sm font-semibold text-[var(--error)] mt-0.5">{formatRp(c.expenseToday)}</div>
-                </div>
-                <div className="col-span-2 sm:col-span-1 p-2.5 rounded-lg bg-[var(--background)] border border-[var(--card-border)]">
-                  <div className="text-[11px] sm:text-xs text-[var(--muted-foreground)]">Saldo Kas Berjalan</div>
-                  <div className="text-sm font-semibold text-[var(--primary)] mt-0.5">{formatRp(c.runningCash)}</div>
-                </div>
-              </div>
-              <div className="pt-2 border-t border-[var(--card-border)] flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[var(--muted-foreground)]">Shift 1:</span>
-                  <StatusBadge status={c.shift1Status} diff={c.shift1Diff} />
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[var(--muted-foreground)]">Shift 2:</span>
-                  <StatusBadge status={c.shift2Status} diff={c.shift2Diff} />
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 sm:p-4">
+          <div className="-mx-3 px-3 sm:mx-0 sm:px-0 overflow-x-auto">
+            <table className="w-full min-w-[680px] text-xs text-left border-collapse tabular-nums">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                  <th className="py-2 pr-3 font-medium">Outlet</th>
+                  <th className="py-2 px-2 font-medium text-right">Omset Hari Ini</th>
+                  <th className="py-2 px-2 font-medium text-right">Belanja Kasir</th>
+                  <th className="py-2 px-2 font-medium text-right">Saldo Kas Berjalan</th>
+                  <th className="py-2 px-2 font-medium text-center">Shift 1</th>
+                  <th className="py-2 px-2 font-medium text-center">Shift 2</th>
+                  <th className="py-2 pl-2 font-medium text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--card-border)]">
+                {todayCards.map((c) => (
+                  <tr key={c.outlet.id} className="hover:bg-[var(--background)]">
+                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                      <div className="font-semibold text-[var(--foreground)]">{c.outlet.name}</div>
+                      {c.outlet.location && (
+                        <div className="text-[11px] text-[var(--muted-foreground)]">{c.outlet.location}</div>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">
+                      {formatRp(c.omsetToday)}
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-medium text-[var(--error)] whitespace-nowrap">
+                      {formatRp(c.expenseToday)}
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-semibold text-[var(--primary)] whitespace-nowrap">
+                      {formatRp(c.runningCash)}
+                    </td>
+                    <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                      <StatusBadge status={c.shift1Status} diff={c.shift1Diff} />
+                    </td>
+                    <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                      <StatusBadge status={c.shift2Status} diff={c.shift2Diff} />
+                    </td>
+                    <td className="py-2.5 pl-2 text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => onOpenShift(c.outlet.id, today, c.suggestedShift)}
+                        className="px-2.5 py-1 rounded-md border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium cursor-pointer"
+                      >
+                        Audit &rarr;
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              {todayCards.length > 0 && (
+                <tfoot>
+                  <tr className="border-t border-[var(--border)] bg-[var(--secondary)]/50 font-semibold">
+                    <td className="py-2 pr-3">Total Semua Outlet</td>
+                    <td className="py-2 px-2 text-right whitespace-nowrap">{formatRp(todayCombinedOmset)}</td>
+                    <td className="py-2 px-2 text-right text-[var(--error)] whitespace-nowrap">
+                      {formatRp(todayCards.reduce((s, c) => s + c.expenseToday, 0))}
+                    </td>
+                    <td className="py-2 px-2 text-right text-[var(--primary)] whitespace-nowrap">
+                      {formatRp(todayCards.reduce((s, c) => s + c.runningCash, 0))}
+                    </td>
+                    <td colSpan={3} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
         </div>
       </section>
 
-      {/* Alerts Section */}
-      {alerts.length > 0 && (
-        <section className="bg-[var(--card)] border border-[var(--warning)] rounded-xl p-4 space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold text-[var(--warning)]">
-              Perlu Perhatian Owner (Selisih Kas / Belum Check Balance)
-            </h3>
-            <span className="text-xs font-semibold tabular-nums text-[var(--warning)]">{alerts.length} catatan</span>
+      {/* Compact Attention Banner */}
+      {(alerts.length > 0 || allCorrections.length > 0) && (
+        <section className="bg-[var(--card)] border border-[var(--warning)]/70 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {alerts.length > 0 && (
+              <span className="font-semibold text-[var(--warning)]">
+                {alerts.length} shift selisih / belum check balance
+              </span>
+            )}
+            {allCorrections.length > 0 && (
+              <span className="text-[var(--muted-foreground)]">
+                &middot; {allCorrections.length} jejak koreksi shift
+              </span>
+            )}
           </div>
-          <div className="divide-y divide-[var(--card-border)]">
-            {alerts.slice(0, 6).map((r) => {
-              const m = calcShiftMetrics(r);
-              return (
-                <div key={r.id} className="py-2 flex items-center justify-between gap-3 text-xs">
-                  <div className="min-w-0">
-                    <span className="font-medium">{outletMap.get(r.outletId)?.name || r.outletId}</span>
-                    <span className="text-[var(--muted-foreground)]">
-                      {' '}
-                      &middot; {formatDateIndo(r.date)} &middot; Shift {r.shift}
-                      {r.cashier ? ` (${r.cashier})` : ''}
-                    </span>
-                    {r.balanceNote && (
-                      <div className="text-[var(--muted-foreground)] truncate mt-0.5">Catatan: {r.balanceNote}</div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <StatusBadge status={m.status} diff={m.diff} />
-                    <button
-                      type="button"
-                      onClick={() => onOpenShift(r.outletId, r.date, r.shift)}
-                      className="px-2 py-1 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium cursor-pointer"
-                    >
-                      Periksa
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Correction Audit Trail */}
-      {allCorrections.length > 0 && (
-        <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold">Jejak Koreksi Omset &amp; Shift (Audit Owner)</h3>
-            <span className="text-xs text-[var(--muted-foreground)] tabular-nums">{allCorrections.length} koreksi</span>
-          </div>
-          <div className="divide-y divide-[var(--card-border)]">
-            {allCorrections.slice(0, 6).map((c) => (
-              <div key={c.id} className="py-2.5 flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-xs">
-                <div className="space-y-1 min-w-0">
-                  <div>
-                    <span className="font-semibold">{c.outletName}</span>
-                    <span className="text-[var(--muted-foreground)]">
-                      {' '}
-                      &middot; {formatDateIndo(c.date)} &middot; Shift {c.shift} &middot; oleh {c.actor} (
-                      {formatDateTimeShort(c.at)})
-                    </span>
-                  </div>
-                  <div className="text-[var(--muted-foreground)]">
-                    Alasan: <span className="text-[var(--foreground)]">{c.reason}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 tabular-nums">
-                    {c.changes.map((ch, idx) => (
-                      <span key={idx} className="px-2 py-0.5 rounded bg-[var(--background)] border border-[var(--border)]">
-                        {ch}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onOpenShift(c.outletId, c.date, c.shift)}
-                  className="px-2.5 py-1 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium shrink-0 self-start cursor-pointer"
-                >
-                  Lihat Shift
-                </button>
-              </div>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setDetailTab('audit')}
+            className="self-start sm:self-auto px-2.5 py-1 rounded-md border border-[var(--warning)]/60 text-[var(--warning)] hover:bg-[var(--warning)]/10 font-medium cursor-pointer"
+          >
+            Lihat Detail Audit &rarr;
+          </button>
         </section>
       )}
 
       {/* Filters */}
-      <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex flex-col md:flex-row md:items-end justify-between gap-3">
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2.5 w-full md:w-auto">
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--muted-foreground)] block">Filter Outlet</label>
-            <select
-              value={outletFilter}
-              onChange={(e) => setOutletFilter(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-medium"
-            >
-              <option value="all">Semua Outlet ({outlets.length})</option>
-              {outlets.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--muted-foreground)] block">Periode</label>
-            <select
-              value={rangeFilter}
-              onChange={(e) => setRangeFilter(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-medium"
-            >
-              <option value="today">Hari Ini</option>
-              <option value="7days">7 Hari Terakhir</option>
-              <option value="30days">30 Hari Terakhir</option>
-              <option value="all">Semua Riwayat</option>
-            </select>
-          </div>
+      <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+          <select
+            value={outletFilter}
+            onChange={(e) => setOutletFilter(e.target.value)}
+            aria-label="Filter Outlet"
+            className="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-medium"
+          >
+            <option value="all">Semua Outlet ({outlets.length})</option>
+            {outlets.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={rangeFilter}
+            onChange={(e) => setRangeFilter(e.target.value)}
+            aria-label="Filter Periode"
+            className="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-medium"
+          >
+            <option value="today">Hari Ini</option>
+            <option value="7days">7 Hari Terakhir</option>
+            <option value="30days">30 Hari Terakhir</option>
+            <option value="all">Semua Riwayat</option>
+          </select>
         </div>
         <button
           type="button"
           onClick={exportOmsetCsv}
-          className="w-full sm:w-auto px-3.5 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-xs font-medium cursor-pointer"
+          className="w-full sm:w-auto px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-xs font-medium cursor-pointer"
         >
           Ekspor CSV Omset
         </button>
@@ -605,53 +571,50 @@ export default function OwnerDashboardView({
           {/* Consolidated KPIs */}
           <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5">
-              <p className="text-xs text-[var(--muted-foreground)]">Total Omset</p>
-              <p className="text-lg font-semibold tabular-nums mt-1">{formatRp(summary.omset)}</p>
-              <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{shifts.length} laporan shift</p>
+              <p className="text-[11px] text-[var(--muted-foreground)]">Total Omset</p>
+              <p className="text-base sm:text-lg font-semibold tabular-nums mt-0.5">{formatRp(summary.omset)}</p>
+              <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">{shifts.length} laporan shift</p>
             </div>
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5">
-              <p className="text-xs text-[var(--muted-foreground)]">Total Masuk Tunai</p>
-              <p className="text-lg font-semibold tabular-nums mt-1">{formatRp(summary.tunai)}</p>
-              <p className="text-xs text-[var(--muted-foreground)] mt-0.5 tabular-nums">
-                Setor Owner: <strong className="text-[var(--primary)]">{formatRp(summary.cashDrop)}</strong>
+              <p className="text-[11px] text-[var(--muted-foreground)]">Tunai &amp; Setor Owner</p>
+              <p className="text-base sm:text-lg font-semibold tabular-nums mt-0.5">{formatRp(summary.tunai)}</p>
+              <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5 tabular-nums">
+                Setor: <strong className="text-[var(--primary)]">{formatRp(summary.cashDrop)}</strong>
               </p>
             </div>
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5">
-              <p className="text-xs text-[var(--muted-foreground)]">Total Pengeluaran Kas Kecil</p>
-              <p className="text-lg font-semibold tabular-nums mt-1 text-[var(--error)]">{formatRp(summary.expense)}</p>
-              <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
-                Neto tunai: {formatRp(summary.tunai - summary.expense)}
+              <p className="text-[11px] text-[var(--muted-foreground)]">Total Pengeluaran</p>
+              <p className="text-base sm:text-lg font-semibold tabular-nums mt-0.5 text-[var(--error)]">
+                {formatRp(summary.expense + totalOwnerExpense)}
+              </p>
+              <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5 tabular-nums">
+                Kasir: {formatRp(summary.expense)} &middot; Owner: {formatRp(totalOwnerExpense)}
               </p>
             </div>
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5">
-              <p className="text-xs text-[var(--muted-foreground)]">Kepatuhan Check Balance</p>
-              <p className="text-lg font-semibold tabular-nums mt-1 text-[var(--success)]">
+              <p className="text-[11px] text-[var(--muted-foreground)]">Check Balance</p>
+              <p className="text-base sm:text-lg font-semibold tabular-nums mt-0.5 text-[var(--success)]">
                 {summary.balanced} Balance
               </p>
-              <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+              <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
                 {summary.issue} selisih &middot; {summary.draft} belum cek
               </p>
             </div>
           </section>
 
           {/* Outlet Comparison & Payment Breakdown */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            <section className="lg:col-span-7 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-5 space-y-3">
-              <div>
-                <h2 className="text-sm font-semibold">Perbandingan Per Outlet</h2>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Omset, tunai, pengeluaran kas kecil, dan status check balance per cabang.
-                </p>
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <section className="lg:col-span-7 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-2.5">
+              <h2 className="text-sm font-semibold">Perbandingan Per Outlet</h2>
               <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
-                <table className="w-full min-w-[540px] text-xs text-left border-collapse">
+                <table className="w-full min-w-[480px] text-xs text-left border-collapse">
                   <thead>
                     <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
-                      <th className="py-2 pr-3 font-medium">Outlet</th>
-                      <th className="py-2 px-2 font-medium text-right">Omset</th>
-                      <th className="py-2 px-2 font-medium text-right">Tunai</th>
-                      <th className="py-2 px-2 font-medium text-right">Pengeluaran</th>
-                      <th className="py-2 pl-2 font-medium text-right">Status Shift</th>
+                      <th className="py-1.5 pr-3 font-medium">Outlet</th>
+                      <th className="py-1.5 px-2 font-medium text-right">Omset</th>
+                      <th className="py-1.5 px-2 font-medium text-right">Tunai</th>
+                      <th className="py-1.5 px-2 font-medium text-right">Pengeluaran</th>
+                      <th className="py-1.5 pl-2 font-medium text-right">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--card-border)] tabular-nums">
@@ -672,14 +635,11 @@ export default function OwnerDashboardView({
                       });
                       return (
                         <tr key={o.id}>
-                          <td className="py-2.5 pr-3">
-                            <div className="font-medium">{o.name}</div>
-                            <div className="text-[var(--muted-foreground)]">{o.location}</div>
-                          </td>
-                          <td className="py-2.5 px-2 text-right font-semibold">{formatRp(omset)}</td>
-                          <td className="py-2.5 px-2 text-right">{formatRp(tunai)}</td>
-                          <td className="py-2.5 px-2 text-right text-[var(--error)]">{formatRp(exp)}</td>
-                          <td className="py-2.5 pl-2 text-right">
+                          <td className="py-2 pr-3 font-medium">{o.name}</td>
+                          <td className="py-2 px-2 text-right font-semibold">{formatRp(omset)}</td>
+                          <td className="py-2 px-2 text-right">{formatRp(tunai)}</td>
+                          <td className="py-2 px-2 text-right text-[var(--error)]">{formatRp(exp)}</td>
+                          <td className="py-2 pl-2 text-right whitespace-nowrap">
                             <span className="text-[var(--success)] font-medium">{bal} OK</span>
                             {iss > 0 && <span className="text-[var(--error)] ml-1.5 font-medium">{iss} Selisih</span>}
                           </td>
@@ -691,14 +651,9 @@ export default function OwnerDashboardView({
               </div>
             </section>
 
-            <section className="lg:col-span-5 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-5 space-y-3">
-              <div>
-                <h2 className="text-sm font-semibold">Komposisi Metode Pembayaran</h2>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Proporsi Tunai, QRIS, Online Delivery &amp; EDC/Transfer.
-                </p>
-              </div>
-              <div className="space-y-3 pt-1">
+            <section className="lg:col-span-5 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-2.5">
+              <h2 className="text-sm font-semibold">Komposisi Pembayaran</h2>
+              <div className="space-y-2.5 pt-1">
                 {[
                   { label: 'Tunai (Cash)', val: summary.tunai, color: 'var(--chart-1)' },
                   { label: 'QRIS', val: summary.qris, color: 'var(--chart-2)' },
@@ -714,7 +669,7 @@ export default function OwnerDashboardView({
                           <strong className="text-[var(--foreground)]">{formatRp(m.val)}</strong> ({pct}%)
                         </span>
                       </div>
-                      <div className="h-2 rounded-full bg-[var(--secondary)] overflow-hidden">
+                      <div className="h-1.5 rounded-full bg-[var(--secondary)] overflow-hidden">
                         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: m.color }} />
                       </div>
                     </div>
@@ -724,474 +679,524 @@ export default function OwnerDashboardView({
             </section>
           </div>
 
-          {/* Shift History Table */}
-          <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold">Riwayat &amp; Audit Laporan Shift Semua Outlet</h2>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Klik &ldquo;Audit&rdquo; untuk memeriksa atau mengoreksi detail shift cabang tersebut.
-                </p>
-              </div>
-              <span className="text-xs text-[var(--muted-foreground)] tabular-nums">{shifts.length} laporan</span>
-            </div>
-            <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
-              <table className="w-full min-w-[780px] text-xs text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
-                    <th className="py-2 pr-3 font-medium">Tanggal</th>
-                    <th className="py-2 px-2 font-medium">Outlet</th>
-                    <th className="py-2 px-2 font-medium">Shift / Kasir</th>
-                    <th className="py-2 px-2 font-medium text-right">Total Omset</th>
-                    <th className="py-2 px-2 font-medium text-right">Tunai</th>
-                    <th className="py-2 px-2 font-medium text-right">Pengeluaran</th>
-                    <th className="py-2 px-2 font-medium text-right">Setor Owner</th>
-                    <th className="py-2 px-2 font-medium text-right">Saldo Akhir</th>
-                    <th className="py-2 px-2 font-medium text-center">Check Balance</th>
-                    <th className="py-2 pl-2 font-medium text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--card-border)] tabular-nums">
-                  {shifts.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="py-8 text-center text-[var(--muted-foreground)]">
-                        Belum ada data laporan shift pada filter ini.
-                      </td>
-                    </tr>
-                  ) : (
-                    shifts.map((r) => {
-                      const m = calcShiftMetrics(r);
-                      return (
-                        <tr key={r.id} className="hover:bg-[var(--background)]">
-                          <td className="py-2.5 pr-3 whitespace-nowrap">{formatDateIndo(r.date)}</td>
-                          <td className="py-2.5 px-2 font-medium whitespace-nowrap">
-                            {outletMap.get(r.outletId)?.name || r.outletId}
-                          </td>
-                          <td className="py-2.5 px-2 whitespace-nowrap">
-                            <span>Shift {r.shift}</span>
-                            {r.cashier && <span className="text-[var(--muted-foreground)]"> &middot; {r.cashier}</span>}
-                            {r.correctionLogs.length > 0 && (
-                              <span className="ml-1.5 px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--warning)] font-medium">
-                                Dikoreksi ({r.correctionLogs.length})
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-2 text-right font-semibold whitespace-nowrap">
-                            {formatRp(m.totalOmset)}
-                          </td>
-                          <td className="py-2.5 px-2 text-right whitespace-nowrap">{formatRp(r.breakdown.tunai)}</td>
-                          <td className="py-2.5 px-2 text-right text-[var(--error)] whitespace-nowrap">
-                            {formatRp(m.totalExpense)}
-                          </td>
-                          <td className="py-2.5 px-2 text-right font-medium text-[var(--primary)] whitespace-nowrap">
-                            {m.cashDrop > 0 ? formatRp(m.cashDrop) : '-'}
-                          </td>
-                          <td className="py-2.5 px-2 text-right font-medium whitespace-nowrap">
-                            {formatRp(m.expectedCash)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center whitespace-nowrap">
-                            <StatusBadge status={m.status} diff={m.diff} />
-                          </td>
-                          <td className="py-2.5 pl-2 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => onOpenShift(r.outletId, r.date, r.shift)}
-                              className="px-2.5 py-1 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium cursor-pointer"
-                            >
-                              Audit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(r)}
-                              title="Hapus laporan"
-                              className="ml-1 px-2 py-1 rounded border border-[var(--border)] hover:text-[var(--error)] cursor-pointer"
-                            >
-                              &times;
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* Rekap & Riwayat Setor ke Owner / Bank */}
-          <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--card-border)]">
-              <div>
-                <h2 className="text-sm font-semibold">Rekap &amp; Riwayat Setor ke Owner / Bank</h2>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Pelacakan seluruh setoran kas dari outlet ke Owner / rekening bank sesuai filter outlet &amp; periode.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={dropMethodFilter}
-                  onChange={(e) => setDropMethodFilter(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-medium"
-                >
-                  <option value="all">Semua Metode</option>
-                  {cashDropMethods.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+          {/* Tabbed Detail Area */}
+          <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-4">
+            <div className="flex flex-wrap items-center gap-1.5 pb-3 border-b border-[var(--card-border)]">
+              {(
+                [
+                  { id: 'shifts' as const, label: `Laporan Shift (${shifts.length})` },
+                  { id: 'expenses' as const, label: `Pengeluaran (${allExpenses.length + ownerExpenses.length})` },
+                  { id: 'cashdrops' as const, label: `Setor Owner/Bank (${allCashDrops.length})` },
+                  { id: 'audit' as const, label: `Audit & Selisih (${alerts.length + allCorrections.length})` },
+                ] as const
+              ).map((t) => (
                 <button
+                  key={t.id}
                   type="button"
-                  onClick={exportCashDropsCsv}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-xs font-medium cursor-pointer"
+                  onClick={() => setDetailTab(t.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                    detailTab === t.id
+                      ? 'bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold'
+                      : 'bg-[var(--background)] border border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
+                  }`}
                 >
-                  CSV Setoran
+                  {t.label}
                 </button>
-              </div>
+              ))}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-3 rounded-lg bg-[var(--background)] border border-[var(--card-border)] space-y-1">
-                <div className="text-xs text-[var(--muted-foreground)]">Total Setor Periode Ini</div>
-                <div className="text-base font-semibold tabular-nums text-[var(--primary)]">
-                  {formatRp(allCashDrops.reduce((s, d) => s + d.amount, 0))}
-                </div>
-                <div className="text-xs text-[var(--muted-foreground)] tabular-nums">
-                  {allCashDrops.length} kali setoran
-                </div>
-              </div>
-              {outlets.map((o) => {
-                const matched = allCashDrops.filter((d) => d.outletId === o.id);
-                const total = matched.reduce((s, d) => s + d.amount, 0);
-                return (
-                  <div
-                    key={o.id}
-                    className="p-3 rounded-lg bg-[var(--background)] border border-[var(--card-border)] space-y-1"
-                  >
-                    <div className="text-xs font-medium truncate">{o.name}</div>
-                    <div className="text-base font-semibold tabular-nums text-[var(--primary)]">
-                      {formatRp(total)}
-                    </div>
-                    <div className="text-xs text-[var(--muted-foreground)] tabular-nums">
-                      {matched.length} transaksi setoran
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
-              <table className="w-full min-w-[780px] text-xs text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
-                    <th className="py-2 pr-3 font-medium">Tanggal &amp; Jam</th>
-                    <th className="py-2 px-2 font-medium">Outlet</th>
-                    <th className="py-2 px-2 font-medium">Shift / Kasir</th>
-                    <th className="py-2 px-2 font-medium">Metode</th>
-                    <th className="py-2 px-2 font-medium">Keterangan</th>
-                    <th className="py-2 px-2 font-medium text-right">Nominal</th>
-                    <th className="py-2 pl-2 font-medium text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--card-border)] tabular-nums">
-                  {filteredCashDrops.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-7 text-center text-[var(--muted-foreground)]">
-                        Belum ada riwayat setoran ke Owner / Bank pada filter ini.
-                      </td>
+            {/* TAB 1: LAPORAN SHIFT */}
+            {detailTab === 'shifts' && (
+              <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+                <table className="w-full min-w-[760px] text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                      <th className="py-2 pr-3 font-medium">Tanggal</th>
+                      <th className="py-2 px-2 font-medium">Outlet</th>
+                      <th className="py-2 px-2 font-medium">Shift / Kasir</th>
+                      <th className="py-2 px-2 font-medium text-right">Omset</th>
+                      <th className="py-2 px-2 font-medium text-right">Tunai</th>
+                      <th className="py-2 px-2 font-medium text-right">Belanja</th>
+                      <th className="py-2 px-2 font-medium text-right">Setor</th>
+                      <th className="py-2 px-2 font-medium text-right">Saldo Akhir</th>
+                      <th className="py-2 px-2 font-medium text-center">Status</th>
+                      <th className="py-2 pl-2 font-medium text-right">Aksi</th>
                     </tr>
-                  ) : (
-                    filteredCashDrops.map((d) => (
-                      <tr key={d.id} className="hover:bg-[var(--background)]">
-                        <td className="py-2 pr-3 whitespace-nowrap">
-                          {formatDateIndo(d.date)}{' '}
-                          {d.time && <span className="text-[var(--muted-foreground)]">{d.time}</span>}
-                        </td>
-                        <td className="py-2 px-2 font-medium whitespace-nowrap">{d.outletName}</td>
-                        <td className="py-2 px-2 whitespace-nowrap">
-                          Shift {d.shift}
-                          {d.cashier && <span className="text-[var(--muted-foreground)]"> &middot; {d.cashier}</span>}
-                        </td>
-                        <td className="py-2 px-2 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded bg-[var(--secondary)] font-medium">{d.method}</span>
-                        </td>
-                        <td className="py-2 px-2 text-[var(--muted-foreground)]">{d.note || '-'}</td>
-                        <td className="py-2 px-2 text-right font-semibold text-[var(--primary)] whitespace-nowrap">
-                          {formatRp(d.amount)}
-                        </td>
-                        <td className="py-2 pl-2 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => onOpenShift(d.outletId, d.date, d.shift)}
-                            className="px-2.5 py-1 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium cursor-pointer"
-                          >
-                            Lihat Shift
-                          </button>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--card-border)] tabular-nums">
+                    {shifts.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="py-8 text-center text-[var(--muted-foreground)]">
+                          Belum ada data laporan shift pada filter ini.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-                {filteredCashDrops.length > 0 && (
-                  <tfoot className="border-t border-[var(--border)] font-semibold tabular-nums">
-                    <tr>
-                      <td colSpan={5} className="py-2.5 pr-3 text-right text-[var(--muted-foreground)]">
-                        Total Setoran ({filteredCashDrops.length} transaksi
-                        {dropMethodFilter !== 'all' ? ` · ${dropMethodFilter}` : ''})
-                      </td>
-                      <td className="py-2.5 px-2 text-right text-[var(--primary)] whitespace-nowrap">
-                        {formatRp(filteredCashDrops.reduce((s, d) => s + d.amount, 0))}
-                      </td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </section>
-
-          {/* Rekap & Detail Pengeluaran Kas Kecil */}
-          <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--card-border)]">
-              <div>
-                <h2 className="text-sm font-semibold">Rekap &amp; Detail Pengeluaran Kas Kecil</h2>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Rincian item pengeluaran per kategori (Minuman, Makanan, Lain-Lain) sesuai filter outlet &amp; periode.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={expCatFilter}
-                  onChange={(e) => setExpCatFilter(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-medium"
-                >
-                  <option value="all">Semua Kategori</option>
-                  {expenseCategories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={exportExpensesCsv}
-                  className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-xs font-medium cursor-pointer"
-                >
-                  CSV Pengeluaran
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {expenseCategories.map((cat, idx) => {
-                const matched = allExpenses.filter((e) => e.category === cat);
-                const total = matched.reduce((s, e) => s + e.amount, 0);
-                const grand = allExpenses.reduce((s, e) => s + e.amount, 0);
-                const pct = grand > 0 ? Math.round((total / grand) * 100) : 0;
-                return (
-                  <div
-                    key={cat}
-                    className="p-3 rounded-lg bg-[var(--background)] border border-[var(--card-border)] space-y-1.5"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium">{cat}</span>
-                      <span className="text-[var(--muted-foreground)] tabular-nums">
-                        {matched.length} item &middot; {pct}%
-                      </span>
-                    </div>
-                    <div className="text-sm font-semibold tabular-nums text-[var(--error)]">{formatRp(total)}</div>
-                    <div className="h-1.5 rounded-full bg-[var(--secondary)] overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${pct}%`, background: chartColors[idx % chartColors.length] }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {outlets.length > 0 && expenseCategories.length > 0 && (
-              <div className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-[var(--foreground)]">
-                    Ringkasan Pembelanjaan per Kategori &amp; Outlet
-                  </h4>
-                  <span className="text-[11px] text-[var(--muted-foreground)]">
-                    {outlets.length} outlet &middot; {expenseCategories.length} kategori
-                  </span>
-                </div>
-                <div className="-mx-3 px-3 sm:mx-0 sm:px-0 overflow-x-auto">
-                  <table className="w-full min-w-[560px] text-xs text-left border-collapse tabular-nums">
-                    <thead>
-                      <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
-                        <th className="py-1.5 pr-3 font-medium">Outlet</th>
-                        {expenseCategories.map((cat) => (
-                          <th key={cat} className="py-1.5 px-2 font-medium text-right">
-                            {cat}
-                          </th>
-                        ))}
-                        <th className="py-1.5 pl-2 font-medium text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--card-border)]">
-                      {outlets.map((o) => {
-                        const outletExps = allExpenses.filter((e) => e.outletName === o.name);
-                        const outletTotal = outletExps.reduce((s, e) => s + e.amount, 0);
+                    ) : (
+                      shifts.map((r) => {
+                        const m = calcShiftMetrics(r);
                         return (
-                          <tr key={o.id} className="hover:bg-[var(--card)]">
-                            <td className="py-1.5 pr-3 font-medium whitespace-nowrap">{o.name}</td>
-                            {expenseCategories.map((cat) => {
-                              const catSum = outletExps
-                                .filter((e) => e.category === cat)
-                                .reduce((s, e) => s + e.amount, 0);
-                              return (
-                                <td
-                                  key={cat}
-                                  className={`py-1.5 px-2 text-right whitespace-nowrap ${
-                                    catSum > 0 ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'
-                                  }`}
-                                >
-                                  {catSum > 0 ? formatRp(catSum) : '-'}
-                                </td>
-                              );
-                            })}
-                            <td className="py-1.5 pl-2 text-right font-semibold text-[var(--error)] whitespace-nowrap">
-                              {formatRp(outletTotal)}
+                          <tr key={r.id} className="hover:bg-[var(--background)]">
+                            <td className="py-2 pr-3 whitespace-nowrap">{formatDateIndo(r.date)}</td>
+                            <td className="py-2 px-2 font-medium whitespace-nowrap">
+                              {outletMap.get(r.outletId)?.name || r.outletId}
+                            </td>
+                            <td className="py-2 px-2 whitespace-nowrap">
+                              <span>S{r.shift}</span>
+                              {r.cashier && <span className="text-[var(--muted-foreground)]"> &middot; {r.cashier}</span>}
+                              {r.correctionLogs.length > 0 && (
+                                <span className="ml-1.5 px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--warning)] font-medium">
+                                  Koreksi ({r.correctionLogs.length})
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 px-2 text-right font-semibold whitespace-nowrap">
+                              {formatRp(m.totalOmset)}
+                            </td>
+                            <td className="py-2 px-2 text-right whitespace-nowrap">{formatRp(r.breakdown.tunai)}</td>
+                            <td className="py-2 px-2 text-right text-[var(--error)] whitespace-nowrap">
+                              {formatRp(m.totalExpense)}
+                            </td>
+                            <td className="py-2 px-2 text-right font-medium text-[var(--primary)] whitespace-nowrap">
+                              {m.cashDrop > 0 ? formatRp(m.cashDrop) : '-'}
+                            </td>
+                            <td className="py-2 px-2 text-right font-medium whitespace-nowrap">
+                              {formatRp(m.expectedCash)}
+                            </td>
+                            <td className="py-2 px-2 text-center whitespace-nowrap">
+                              <StatusBadge status={m.status} diff={m.diff} />
+                            </td>
+                            <td className="py-2 pl-2 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => onOpenShift(r.outletId, r.date, r.shift)}
+                                className="px-2 py-1 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium cursor-pointer"
+                              >
+                                Audit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(r)}
+                                title="Hapus laporan"
+                                className="ml-1 px-2 py-1 rounded border border-[var(--border)] hover:text-[var(--error)] cursor-pointer"
+                              >
+                                &times;
+                              </button>
                             </td>
                           </tr>
                         );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-[var(--border)] bg-[var(--secondary)]/60 font-semibold">
-                        <td className="py-1.5 pr-3">Total per Kategori</td>
-                        {expenseCategories.map((cat) => {
-                          const catGrand = allExpenses
-                            .filter((e) => e.category === cat)
-                            .reduce((s, e) => s + e.amount, 0);
-                          return (
-                            <td key={cat} className="py-1.5 px-2 text-right whitespace-nowrap">
-                              {formatRp(catGrand)}
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB 2: PENGELUARAN (KAS KECIL + OWNER) */}
+            {detailTab === 'expenses' && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="text-xs text-[var(--muted-foreground)]">
+                    Ringkasan pengeluaran kas kecil per kategori &amp; outlet, serta pengeluaran langsung owner.
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={expCatFilter}
+                      onChange={(e) => setExpCatFilter(e.target.value)}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-medium"
+                    >
+                      <option value="all">Semua Kategori Kas Kecil</option>
+                      {expenseCategories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={exportExpensesCsv}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-xs font-medium cursor-pointer"
+                    >
+                      CSV Pengeluaran
+                    </button>
+                  </div>
+                </div>
+
+                {/* Category Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {expenseCategories.map((cat, idx) => {
+                    const matched = allExpenses.filter((e) => e.category === cat);
+                    const total = matched.reduce((s, e) => s + e.amount, 0);
+                    const grand = allExpenses.reduce((s, e) => s + e.amount, 0);
+                    const pct = grand > 0 ? Math.round((total / grand) * 100) : 0;
+                    return (
+                      <div
+                        key={cat}
+                        className="p-3 rounded-lg bg-[var(--background)] border border-[var(--card-border)] space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium">{cat}</span>
+                          <span className="text-[var(--muted-foreground)] tabular-nums">
+                            {matched.length} item &middot; {pct}%
+                          </span>
+                        </div>
+                        <div className="text-sm font-semibold tabular-nums text-[var(--error)]">{formatRp(total)}</div>
+                        <div className="h-1.5 rounded-full bg-[var(--secondary)] overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${pct}%`, background: chartColors[idx % chartColors.length] }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Matrix Outlet x Category */}
+                {outlets.length > 0 && expenseCategories.length > 0 && (
+                  <div className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-3 space-y-2">
+                    <h4 className="text-xs font-semibold">Ringkasan Kas Kecil per Kategori &amp; Outlet</h4>
+                    <div className="-mx-3 px-3 sm:mx-0 sm:px-0 overflow-x-auto">
+                      <table className="w-full min-w-[560px] text-xs text-left border-collapse tabular-nums">
+                        <thead>
+                          <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                            <th className="py-1.5 pr-3 font-medium">Outlet</th>
+                            {expenseCategories.map((cat) => (
+                              <th key={cat} className="py-1.5 px-2 font-medium text-right">
+                                {cat}
+                              </th>
+                            ))}
+                            <th className="py-1.5 pl-2 font-medium text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--card-border)]">
+                          {outlets.map((o) => {
+                            const outletExps = allExpenses.filter((e) => e.outletName === o.name);
+                            const outletTotal = outletExps.reduce((s, e) => s + e.amount, 0);
+                            return (
+                              <tr key={o.id}>
+                                <td className="py-1.5 pr-3 font-medium whitespace-nowrap">{o.name}</td>
+                                {expenseCategories.map((cat) => {
+                                  const catSum = outletExps
+                                    .filter((e) => e.category === cat)
+                                    .reduce((s, e) => s + e.amount, 0);
+                                  return (
+                                    <td
+                                      key={cat}
+                                      className={`py-1.5 px-2 text-right whitespace-nowrap ${
+                                        catSum > 0 ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'
+                                      }`}
+                                    >
+                                      {catSum > 0 ? formatRp(catSum) : '-'}
+                                    </td>
+                                  );
+                                })}
+                                <td className="py-1.5 pl-2 text-right font-semibold text-[var(--error)] whitespace-nowrap">
+                                  {formatRp(outletTotal)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-[var(--border)] bg-[var(--secondary)]/60 font-semibold">
+                            <td className="py-1.5 pr-3">Total per Kategori</td>
+                            {expenseCategories.map((cat) => {
+                              const catGrand = allExpenses
+                                .filter((e) => e.category === cat)
+                                .reduce((s, e) => s + e.amount, 0);
+                              return (
+                                <td key={cat} className="py-1.5 px-2 text-right whitespace-nowrap">
+                                  {formatRp(catGrand)}
+                                </td>
+                              );
+                            })}
+                            <td className="py-1.5 pl-2 text-right text-[var(--error)] whitespace-nowrap">
+                              {formatRp(allExpenses.reduce((s, e) => s + e.amount, 0))}
                             </td>
-                          );
-                        })}
-                        <td className="py-1.5 pl-2 text-right text-[var(--error)] whitespace-nowrap">
-                          {formatRp(allExpenses.reduce((s, e) => s + e.amount, 0))}
-                        </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Detail Kas Kecil */}
+                <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                        <th className="py-2 pr-3 font-medium">Tanggal &amp; Jam</th>
+                        <th className="py-2 px-2 font-medium">Outlet</th>
+                        <th className="py-2 px-2 font-medium">Shift / Kasir</th>
+                        <th className="py-2 px-2 font-medium">Kategori</th>
+                        <th className="py-2 px-2 font-medium">Keterangan Pengeluaran</th>
+                        <th className="py-2 pl-2 font-medium text-right">Nominal</th>
                       </tr>
-                    </tfoot>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--card-border)] tabular-nums">
+                      {filteredExpenses.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-6 text-center text-[var(--muted-foreground)]">
+                            Tidak ada detail pengeluaran kas kecil pada filter ini.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredExpenses.map((it) => (
+                          <tr key={it.id} className="hover:bg-[var(--background)]">
+                            <td className="py-2 pr-3 whitespace-nowrap">
+                              {formatDateIndo(it.date)}{' '}
+                              {it.time && <span className="text-[var(--muted-foreground)]">{it.time}</span>}
+                            </td>
+                            <td className="py-2 px-2 font-medium whitespace-nowrap">{it.outletName}</td>
+                            <td className="py-2 px-2 whitespace-nowrap">
+                              S{it.shift}
+                              {it.cashier ? ` · ${it.cashier}` : ''}
+                            </td>
+                            <td className="py-2 px-2 whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded bg-[var(--secondary)] font-medium">
+                                {it.category}
+                              </span>
+                            </td>
+                            <td className="py-2 px-2">{it.desc}</td>
+                            <td className="py-2 pl-2 text-right font-semibold text-[var(--error)] whitespace-nowrap">
+                              -{formatRp(it.amount)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pengeluaran Langsung Owner */}
+                <div className="pt-3 border-t border-[var(--border)] space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-semibold">Pengeluaran Langsung Owner (Belanja Bahan &amp; Operasional)</h4>
+                    <span className="text-xs font-semibold tabular-nums text-[var(--error)]">
+                      Total: {formatRp(totalOwnerExpense)}
+                    </span>
+                  </div>
+                  {ownerExpenses.length === 0 ? (
+                    <p className="text-xs text-[var(--muted-foreground)] py-3 text-center border border-dashed border-[var(--border)] rounded-lg">
+                      Belum ada pengeluaran langsung owner pada rentang filter ini. Input lewat tab <strong>Pengeluaran Owner</strong>.
+                    </p>
+                  ) : (
+                    <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+                      <table className="w-full min-w-[640px] text-xs text-left border-collapse tabular-nums">
+                        <thead>
+                          <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                            <th className="py-2 pr-3 font-medium">Tanggal</th>
+                            <th className="py-2 px-2 font-medium">Kategori</th>
+                            <th className="py-2 px-2 font-medium">Outlet Terkait</th>
+                            <th className="py-2 px-2 font-medium">Keterangan</th>
+                            <th className="py-2 pl-2 font-medium text-right">Nominal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--card-border)]">
+                          {ownerExpenses.slice(0, 12).map((it) => (
+                            <tr key={it.id} className="hover:bg-[var(--background)]">
+                              <td className="py-2 pr-3 whitespace-nowrap">{formatDateIndo(it.date)}</td>
+                              <td className="py-2 px-2 whitespace-nowrap">
+                                <span className="px-2 py-0.5 rounded bg-[var(--secondary)] font-medium">
+                                  {it.category}
+                                </span>
+                              </td>
+                              <td className="py-2 px-2">
+                                {it.outletIds.map((id) => outletMap.get(id)?.name || id).join(', ')}
+                              </td>
+                              <td className="py-2 px-2">{it.description}</td>
+                              <td className="py-2 pl-2 text-right font-semibold text-[var(--error)] whitespace-nowrap">
+                                -{formatRp(it.amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: SETOR OWNER / BANK */}
+            {detailTab === 'cashdrops' && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs text-[var(--muted-foreground)]">
+                    Total setoran periode ini:{' '}
+                    <strong className="text-[var(--primary)]">
+                      {formatRp(allCashDrops.reduce((s, d) => s + d.amount, 0))}
+                    </strong>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={dropMethodFilter}
+                      onChange={(e) => setDropMethodFilter(e.target.value)}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-medium"
+                    >
+                      <option value="all">Semua Metode</option>
+                      {cashDropMethods.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={exportCashDropsCsv}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-xs font-medium cursor-pointer"
+                    >
+                      CSV Setoran
+                    </button>
+                  </div>
+                </div>
+
+                <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                        <th className="py-2 pr-3 font-medium">Tanggal &amp; Jam</th>
+                        <th className="py-2 px-2 font-medium">Outlet</th>
+                        <th className="py-2 px-2 font-medium">Shift / Kasir</th>
+                        <th className="py-2 px-2 font-medium">Metode</th>
+                        <th className="py-2 px-2 font-medium">Keterangan</th>
+                        <th className="py-2 px-2 font-medium text-right">Nominal</th>
+                        <th className="py-2 pl-2 font-medium text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--card-border)] tabular-nums">
+                      {filteredCashDrops.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-7 text-center text-[var(--muted-foreground)]">
+                            Belum ada riwayat setoran ke Owner / Bank pada filter ini.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredCashDrops.map((it) => (
+                          <tr key={it.id} className="hover:bg-[var(--background)]">
+                            <td className="py-2 pr-3 whitespace-nowrap">
+                              {formatDateIndo(it.date)}{' '}
+                              {it.time && <span className="text-[var(--muted-foreground)]">{it.time}</span>}
+                            </td>
+                            <td className="py-2 px-2 font-medium whitespace-nowrap">{it.outletName}</td>
+                            <td className="py-2 px-2 whitespace-nowrap">
+                              S{it.shift}
+                              {it.cashier ? ` · ${it.cashier}` : ''}
+                            </td>
+                            <td className="py-2 px-2 whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded bg-[var(--secondary)] font-medium">
+                                {it.method}
+                              </span>
+                            </td>
+                            <td className="py-2 px-2 text-[var(--muted-foreground)]">{it.note || '-'}</td>
+                            <td className="py-2 px-2 text-right font-semibold text-[var(--primary)] whitespace-nowrap">
+                              {formatRp(it.amount)}
+                            </td>
+                            <td className="py-2 pl-2 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => onOpenShift(it.outletId, it.date, it.shift)}
+                                className="px-2 py-1 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium cursor-pointer"
+                              >
+                                Lihat Shift
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
                   </table>
                 </div>
               </div>
             )}
 
-            <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
-              <table className="w-full min-w-[780px] text-xs text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
-                    <th className="py-2 pr-3 font-medium">Tanggal &amp; Jam</th>
-                    <th className="py-2 px-2 font-medium">Outlet</th>
-                    <th className="py-2 px-2 font-medium">Shift / Kasir</th>
-                    <th className="py-2 px-2 font-medium">Kategori</th>
-                    <th className="py-2 px-2 font-medium">Keterangan Pengeluaran</th>
-                    <th className="py-2 pl-2 font-medium text-right">Nominal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--card-border)] tabular-nums">
-                  {filteredExpenses.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-7 text-center text-[var(--muted-foreground)]">
-                        Tidak ada detail pengeluaran pada filter ini.
-                      </td>
-                    </tr>
+            {/* TAB 4: AUDIT & SELISIH */}
+            {detailTab === 'audit' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-[var(--warning)]">
+                    Selisih Kas / Belum Check Balance ({alerts.length})
+                  </h4>
+                  {alerts.length === 0 ? (
+                    <p className="text-xs text-[var(--muted-foreground)] py-3">
+                      Semua laporan shift pada filter ini sudah balance.
+                    </p>
                   ) : (
-                    filteredExpenses.map((it) => (
-                      <tr key={it.id} className="hover:bg-[var(--background)]">
-                        <td className="py-2 pr-3 whitespace-nowrap">
-                          {formatDateIndo(it.date)}{' '}
-                          {it.time && <span className="text-[var(--muted-foreground)]">{it.time}</span>}
-                        </td>
-                        <td className="py-2 px-2 font-medium whitespace-nowrap">{it.outletName}</td>
-                        <td className="py-2 px-2 whitespace-nowrap">
-                          Shift {it.shift}
-                          {it.cashier && <span className="text-[var(--muted-foreground)]"> &middot; {it.cashier}</span>}
-                        </td>
-                        <td className="py-2 px-2 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded bg-[var(--secondary)] font-medium">{it.category}</span>
-                        </td>
-                        <td className="py-2 px-2">{it.desc}</td>
-                        <td className="py-2 pl-2 text-right font-semibold text-[var(--error)] whitespace-nowrap">
-                          -{formatRp(it.amount)}
-                        </td>
-                      </tr>
-                    ))
+                    <div className="divide-y divide-[var(--card-border)]">
+                      {alerts.map((r) => {
+                        const m = calcShiftMetrics(r);
+                        return (
+                          <div key={r.id} className="py-2 flex items-center justify-between gap-3 text-xs">
+                            <div className="min-w-0">
+                              <span className="font-medium">{outletMap.get(r.outletId)?.name || r.outletId}</span>
+                              <span className="text-[var(--muted-foreground)]">
+                                {' '}
+                                &middot; {formatDateIndo(r.date)} &middot; Shift {r.shift}
+                                {r.cashier ? ` (${r.cashier})` : ''}
+                              </span>
+                              {r.balanceNote && (
+                                <div className="text-[var(--muted-foreground)] truncate mt-0.5">
+                                  Catatan: {r.balanceNote}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <StatusBadge status={m.status} diff={m.diff} />
+                              <button
+                                type="button"
+                                onClick={() => onOpenShift(r.outletId, r.date, r.shift)}
+                                className="px-2 py-1 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium cursor-pointer"
+                              >
+                                Periksa
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                </tbody>
-                {filteredExpenses.length > 0 && (
-                  <tfoot className="border-t border-[var(--border)] font-semibold tabular-nums">
-                    <tr>
-                      <td colSpan={5} className="py-2.5 pr-3 text-right text-[var(--muted-foreground)]">
-                        Total ({filteredExpenses.length} item{expCatFilter !== 'all' ? ` · ${expCatFilter}` : ''})
-                      </td>
-                      <td className="py-2.5 pl-2 text-right text-[var(--error)] whitespace-nowrap">
-                        -{formatRp(filteredExpenses.reduce((s, e) => s + e.amount, 0))}
-                      </td>
-                    </tr>
-                  </tfoot>
+                </div>
+
+                {allCorrections.length > 0 && (
+                  <div className="pt-3 border-t border-[var(--border)] space-y-2">
+                    <h4 className="text-xs font-semibold">Jejak Koreksi Omset &amp; Shift ({allCorrections.length})</h4>
+                    <div className="divide-y divide-[var(--card-border)]">
+                      {allCorrections.map((c) => (
+                        <div key={c.id} className="py-2 flex flex-col sm:flex-row sm:items-start justify-between gap-2 text-xs">
+                          <div className="space-y-1 min-w-0">
+                            <div>
+                              <span className="font-semibold">{c.outletName}</span>
+                              <span className="text-[var(--muted-foreground)]">
+                                {' '}
+                                &middot; {formatDateIndo(c.date)} &middot; Shift {c.shift} &middot; oleh {c.actor} (
+                                {formatDateTimeShort(c.at)})
+                              </span>
+                            </div>
+                            <div className="text-[var(--muted-foreground)]">
+                              Alasan: <span className="text-[var(--foreground)]">{c.reason}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 tabular-nums">
+                              {c.changes.map((ch, idx) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 rounded bg-[var(--background)] border border-[var(--border)]"
+                                >
+                                  {ch}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onOpenShift(c.outletId, c.date, c.shift)}
+                            className="px-2.5 py-1 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] font-medium shrink-0 self-start cursor-pointer"
+                          >
+                            Lihat Shift
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </table>
-            </div>
-          </section>
-
-          {/* Pengeluaran Langsung Owner */}
-          <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-5 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <div>
-                <h3 className="text-sm font-semibold">Pengeluaran Langsung Owner</h3>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Belanja bahan &amp; operasional (listrik, WiFi, sewa, dll) di luar kas laci kasir. Input lewat tab <strong>Pengeluaran Owner</strong>.
-                </p>
-              </div>
-              <div className="text-sm font-bold tabular-nums text-[var(--error)]">
-                Total: {formatRp(ownerExpenses.reduce((s, e) => s + e.amount, 0))}
-              </div>
-            </div>
-
-            {ownerExpenses.length === 0 ? (
-              <p className="text-xs text-[var(--muted-foreground)] py-3 text-center border border-dashed border-[var(--border)] rounded-lg">
-                Belum ada pengeluaran langsung owner pada rentang filter ini.
-              </p>
-            ) : (
-              <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
-                <table className="w-full min-w-[640px] text-xs text-left border-collapse tabular-nums">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
-                      <th className="py-2 pr-3 font-medium">Tanggal</th>
-                      <th className="py-2 px-2 font-medium">Kategori</th>
-                      <th className="py-2 px-2 font-medium">Outlet Terkait</th>
-                      <th className="py-2 px-2 font-medium">Keterangan</th>
-                      <th className="py-2 pl-2 font-medium text-right">Nominal</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--card-border)]">
-                    {ownerExpenses.slice(0, 10).map((it) => (
-                      <tr key={it.id} className="hover:bg-[var(--background)]">
-                        <td className="py-2 pr-3 whitespace-nowrap">{formatDateIndo(it.date)}</td>
-                        <td className="py-2 px-2 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded bg-[var(--secondary)] font-medium">{it.category}</span>
-                        </td>
-                        <td className="py-2 px-2">
-                          {it.outletIds.map((id) => outletMap.get(id)?.name || id).join(', ')}
-                        </td>
-                        <td className="py-2 px-2">{it.description}</td>
-                        <td className="py-2 pl-2 text-right font-semibold text-[var(--error)] whitespace-nowrap">
-                          -{formatRp(it.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               </div>
             )}
           </section>

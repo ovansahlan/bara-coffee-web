@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_CASH_DROP_METHODS,
+  DEFAULT_SHIFT_SCHEDULE,
   DENOMS,
   calcShiftMetrics,
   computeCumulativeShift2Breakdown,
@@ -37,6 +38,7 @@ interface ShiftInputViewProps {
   selectedShift: 1 | 2;
   canSwitchOutlet?: boolean;
   defaultCashierName?: string;
+  todayAttendanceStatus?: { checkedIn: boolean; checkedOut: boolean; shift: 1 | 2 | 3 | null } | null;
   onChangeContext: (next: { outletId?: string; date?: string; shift?: 1 | 2 }) => void;
   onDirtyChange?: (dirty: boolean) => void;
   onToast: (msg: string, type?: 'success' | 'warning' | 'error' | 'info') => void;
@@ -51,10 +53,37 @@ export default function ShiftInputView({
   selectedShift,
   canSwitchOutlet,
   defaultCashierName,
+  todayAttendanceStatus = null,
   onChangeContext,
   onDirtyChange,
   onToast,
 }: ShiftInputViewProps) {
+  const remindedCloseRef = useRef<string>('');
+
+  useEffect(() => {
+    if (role !== 'crew' || !todayAttendanceStatus || todayAttendanceStatus.checkedOut) return;
+    if (selectedDate !== getLocalDateStr(0)) return;
+    const key = `${selectedDate}_${selectedShift}`;
+    if (remindedCloseRef.current === key) return;
+
+    const sched = settings.shiftSchedule || DEFAULT_SHIFT_SCHEDULE;
+    const endHhMm = selectedShift === 1 ? sched.shift1End : sched.shift2End;
+    const toMin = (hhmm: string) => {
+      const [h, m] = hhmm.split(':').map((n) => parseInt(n, 10) || 0);
+      return h * 60 + m;
+    };
+    const nowMin = toMin(getCurrentTimeWib());
+    const endMin = toMin(endHhMm);
+
+    if (nowMin >= endMin - 30) {
+      remindedCloseRef.current = key;
+      if (!todayAttendanceStatus.checkedIn) {
+        onToast('Pengingat: Anda belum absen masuk hari ini. Jangan lupa absen di tab Absensi!', 'warning');
+      } else {
+        onToast('Menjelang tutup shift: jangan lupa absen pulang di tab Absensi sebelum pulang!', 'warning');
+      }
+    }
+  }, [role, todayAttendanceStatus, selectedDate, selectedShift, settings.shiftSchedule, onToast]);
   const isOwner = role === 'owner';
   const allowOutletSwitch = canSwitchOutlet ?? isOwner;
   const activeOutlet = outlets.find((o) => o.id === selectedOutletId) || outlets[0];
@@ -341,6 +370,16 @@ export default function ShiftInputView({
           onToast('Check Balance berhasil — Saldo kasir BALANCE & shift terkunci!', 'success');
         } else {
           onToast(`Check Balance tersimpan dengan selisih ${formatRp(m.diff)}.`, 'warning');
+        }
+        if (role === 'crew' && todayAttendanceStatus && !todayAttendanceStatus.checkedOut) {
+          setTimeout(() => {
+            onToast(
+              todayAttendanceStatus.checkedIn
+                ? 'Pengingat Close Shift: Jangan lupa absen pulang di tab Absensi!'
+                : 'Pengingat Close Shift: Anda belum absen hari ini, cek tab Absensi!',
+              'warning'
+            );
+          }, 1800);
         }
       } else {
         onToast('Draft shift tersimpan ke database.', 'info');

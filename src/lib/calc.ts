@@ -286,19 +286,22 @@ export function computeAttendanceTiming(params: {
 
   let workMinutes = 0;
   let overtimeMinutes = 0;
+  const OVERTIME_GRACE_MINUTES = 15;
   if (params.checkInAt && params.checkOutAt) {
     const ms = new Date(params.checkOutAt).getTime() - new Date(params.checkInAt).getTime();
     workMinutes = Math.max(0, Math.round(ms / 60000));
     if (params.shift === 3) {
-      // Full Shift: overtime is work time beyond 1 standard shift duration
+      // Full Shift: overtime is work time beyond 1 standard shift duration (+15 min checkout grace)
       const s1Start = parseHhMmToMinutes(sched.shift1Start);
       const s1End = parseHhMmToMinutes(sched.shift1End);
       const normalShiftMinutes = Math.max(60, s1End > s1Start ? s1End - s1Start : 420);
-      overtimeMinutes = Math.max(0, workMinutes - normalShiftMinutes);
+      const rawOt = Math.max(0, workMinutes - normalShiftMinutes);
+      overtimeMinutes = rawOt > OVERTIME_GRACE_MINUTES ? rawOt : 0;
     } else {
       const outMin = getWibMinutesFromIso(params.checkOutAt);
-      if (outMin > endMin) {
-        overtimeMinutes = outMin - endMin;
+      const rawOt = outMin - endMin;
+      if (rawOt > OVERTIME_GRACE_MINUTES) {
+        overtimeMinutes = rawOt;
       }
     }
   }

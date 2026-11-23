@@ -320,6 +320,31 @@ export default function AttendanceView({
     }
   }
 
+  async function handleClearOvertime(a: AttendanceRecord) {
+    try {
+      const res = await fetch('/api/attendance', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: a.id,
+          employeeId: a.employeeId,
+          outletId: a.outletId,
+          date: a.date,
+          shift: a.shift,
+          status: a.status,
+          lateMinutes: a.lateMinutes,
+          overtimeMinutes: 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menolkan lembur.');
+      onToast(`Lembur ${a.employeeName} dinolkan (dianggap telat absen pulang).`, 'info');
+      loadData();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Gagal memperbarui lembur.', 'error');
+    }
+  }
+
   const outletMap = useMemo(() => new Map(outlets.map((o) => [o.id, o])), [outlets]);
   const todayAttendances = useMemo(() => attendances.filter((a) => a.date === today), [attendances, today]);
 
@@ -954,7 +979,23 @@ export default function AttendanceView({
                         )}
                       </td>
                       <td className="py-2.5 px-2 whitespace-nowrap">
-                        {a.overtimeMinutes > 0 ? `${a.overtimeMinutes} mnt` : '-'}
+                        {a.overtimeMinutes > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            <span>{a.overtimeMinutes} mnt</span>
+                            {isOwner && (
+                              <button
+                                type="button"
+                                onClick={() => handleClearOvertime(a)}
+                                className="px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-[10px] text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer"
+                                title="Tandai bukan lembur (telat absen pulang)"
+                              >
+                                Bukan Lembur
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          '-'
+                        )}
                       </td>
                       {isOwner && (
                         <td className="py-2.5 pl-2 text-right whitespace-nowrap">
