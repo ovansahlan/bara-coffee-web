@@ -47,40 +47,9 @@ function doPost(e) {
       counts[name] = rows.length;
     }
 
-    // Perbarui daftar nama outlet di tab Ringkasan (baris 6..5+N) jika ada
+    // Perbarui tab Ringkasan secara dinamis (Section A: Outlet, Section B: Kategori per Outlet, Section C: Absensi/Kasbon/Payroll)
     if (Array.isArray(payload.outlets) && payload.outlets.length > 0) {
-      var summarySheet = ss.getSheetByName('Ringkasan');
-      if (summarySheet) {
-        var outlets = payload.outlets;
-        var startRow = 6;
-        for (var j = 0; j < outlets.length; j++) {
-          var r = startRow + j;
-          summarySheet.getRange(r, 1, 1, 9).setValues([[
-            outlets[j],
-            '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$K$2:$K)',
-            '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$G$2:$G)',
-            '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$H$2:$H)',
-            '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$I$2:$I)',
-            '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$J$2:$J)',
-            '=SUMIF(Pembelanjaan!$C$2:$C, A' + r + ', Pembelanjaan!$G$2:$G)',
-            '=SUMIF(Setor_Owner_Bank!$C$2:$C, A' + r + ', Setor_Owner_Bank!$G$2:$G)',
-            '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$M$2:$M)',
-          ]]);
-        }
-        var totalRow = startRow + outlets.length;
-        var endRow = totalRow - 1;
-        summarySheet.getRange(totalRow, 1, 1, 9).setValues([[
-          'TOTAL SEMUA OUTLET',
-          '=SUM(B' + startRow + ':B' + endRow + ')',
-          '=SUM(C' + startRow + ':C' + endRow + ')',
-          '=SUM(D' + startRow + ':D' + endRow + ')',
-          '=SUM(E' + startRow + ':E' + endRow + ')',
-          '=SUM(F' + startRow + ':F' + endRow + ')',
-          '=SUM(G' + startRow + ':G' + endRow + ')',
-          '=SUM(H' + startRow + ':H' + endRow + ')',
-          '=SUM(I' + startRow + ':I' + endRow + ')',
-        ]]);
-      }
+      rebuildSummarySheet(ss, payload.outlets, payload.categories);
     }
 
     return ContentService.createTextOutput(
@@ -91,4 +60,138 @@ function doPost(e) {
       JSON.stringify({ ok: false, error: String(err && err.message ? err.message : err) })
     ).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function colLetter(n) {
+  var s = '';
+  while (n > 0) {
+    var m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+function rebuildSummarySheet(ss, outlets, categories) {
+  var sheet = ss.getSheetByName('Ringkasan');
+  if (!sheet) return;
+
+  var cats = Array.isArray(categories) && categories.length > 0
+    ? categories
+    : ['Minuman', 'Makanan', 'Lain-Lain'];
+
+  var maxRows = sheet.getMaxRows();
+  var maxCols = Math.max(sheet.getMaxColumns(), 12);
+  if (maxRows >= 4) {
+    sheet.getRange(4, 1, maxRows - 3, maxCols).clearContent().clearFormat();
+  }
+
+  // --- SECTION A: REKAP TRANSAKSI & BELANJA PER OUTLET ---
+  var rTitleA = 4;
+  var rHdrA = 5;
+  var rStartA = 6;
+  sheet.getRange(rTitleA, 1).setValue('A. REKAP TRANSAKSI & BELANJA PER OUTLET')
+    .setFontWeight('bold').setFontSize(11).setFontColor('#012669');
+
+  var hdrA = [[
+    'Outlet', 'Total Penjualan (Rp)', 'Cash (Rp)', 'QRIS (Rp)',
+    'GoFood (Rp)', 'GrabFood (Rp)', 'Belanja Kas Kecil (Rp)',
+    'Setoran Owner/Bank (Rp)', 'Selisih Total (Rp)'
+  ]];
+  sheet.getRange(rHdrA, 1, 1, 9).setValues(hdrA)
+    .setBackground('#012669').setFontColor('#FFFFFF').setFontWeight('bold').setWrap(true);
+
+  var rowsA = [];
+  for (var j = 0; j < outlets.length; j++) {
+    var r = rStartA + j;
+    rowsA.push([
+      outlets[j],
+      '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$K$2:$K)',
+      '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$G$2:$G)',
+      '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$H$2:$H)',
+      '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$I$2:$I)',
+      '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$J$2:$J)',
+      '=SUMIF(Pembelanjaan!$C$2:$C, A' + r + ', Pembelanjaan!$G$2:$G)',
+      '=SUMIF(Setor_Owner_Bank!$C$2:$C, A' + r + ', Setor_Owner_Bank!$G$2:$G)',
+      '=SUMIF(Transaksi_Harian!$B$2:$B, A' + r + ', Transaksi_Harian!$M$2:$M)',
+    ]);
+  }
+  sheet.getRange(rStartA, 1, rowsA.length, 9).setValues(rowsA);
+  sheet.getRange(rStartA, 2, rowsA.length, 8).setNumberFormat('#,##0');
+
+  var rEndA = rStartA + outlets.length - 1;
+  var rTotalA = rEndA + 1;
+  sheet.getRange(rTotalA, 1, 1, 9).setValues([[
+    'TOTAL SEMUA OUTLET',
+    '=SUM(B' + rStartA + ':B' + rEndA + ')',
+    '=SUM(C' + rStartA + ':C' + rEndA + ')',
+    '=SUM(D' + rStartA + ':D' + rEndA + ')',
+    '=SUM(E' + rStartA + ':E' + rEndA + ')',
+    '=SUM(F' + rStartA + ':F' + rEndA + ')',
+    '=SUM(G' + rStartA + ':G' + rEndA + ')',
+    '=SUM(H' + rStartA + ':H' + rEndA + ')',
+    '=SUM(I' + rStartA + ':I' + rEndA + ')',
+  ]]).setBackground('#E8F0FA').setFontWeight('bold');
+  sheet.getRange(rTotalA, 2, 1, 8).setNumberFormat('#,##0');
+
+  // --- SECTION B: REKAP PEMBELANJAAN PER KATEGORI & OUTLET ---
+  var rTitleB = rTotalA + 2;
+  var rHdrB = rTitleB + 1;
+  var rStartB = rHdrB + 1;
+  var numColsB = cats.length + 2;
+  var lastCatCol = colLetter(1 + cats.length);
+
+  sheet.getRange(rTitleB, 1).setValue('B. REKAP PEMBELANJAAN PER KATEGORI & OUTLET')
+    .setFontWeight('bold').setFontSize(11).setFontColor('#012669');
+
+  var hdrB = ['Outlet'].concat(cats).concat(['Total Pembelanjaan (Rp)']);
+  sheet.getRange(rHdrB, 1, 1, numColsB).setValues([hdrB])
+    .setBackground('#012669').setFontColor('#FFFFFF').setFontWeight('bold').setWrap(true);
+
+  var rowsB = [];
+  for (var k = 0; k < outlets.length; k++) {
+    var rb = rStartB + k;
+    var rowB = [outlets[k]];
+    for (var c = 0; c < cats.length; c++) {
+      var catCol = colLetter(2 + c);
+      rowB.push('=SUMIFS(Pembelanjaan!$G$2:$G, Pembelanjaan!$C$2:$C, $A' + rb + ', Pembelanjaan!$E$2:$E, ' + catCol + '$' + rHdrB + ')');
+    }
+    rowB.push('=SUM(B' + rb + ':' + lastCatCol + rb + ')');
+    rowsB.push(rowB);
+  }
+  sheet.getRange(rStartB, 1, rowsB.length, numColsB).setValues(rowsB);
+  sheet.getRange(rStartB, 2, rowsB.length, numColsB - 1).setNumberFormat('#,##0');
+
+  var rEndB = rStartB + outlets.length - 1;
+  var rTotalB = rEndB + 1;
+  var totalRowB = ['TOTAL PER KATEGORI'];
+  for (var colIdx = 2; colIdx <= numColsB; colIdx++) {
+    var letter = colLetter(colIdx);
+    totalRowB.push('=SUM(' + letter + rStartB + ':' + letter + rEndB + ')');
+  }
+  sheet.getRange(rTotalB, 1, 1, numColsB).setValues([totalRowB])
+    .setBackground('#E8F0FA').setFontWeight('bold');
+  sheet.getRange(rTotalB, 2, 1, numColsB - 1).setNumberFormat('#,##0');
+
+  // --- SECTION C: REKAP ABSENSI, KASBON & PAYROLL ---
+  var rTitleC = rTotalB + 2;
+  var rHdrC = rTitleC + 1;
+  var rStartC = rHdrC + 1;
+
+  sheet.getRange(rTitleC, 1).setValue('C. REKAP ABSENSI, KASBON & PAYROLL')
+    .setFontWeight('bold').setFontSize(11).setFontColor('#012669');
+  sheet.getRange(rHdrC, 1, 1, 3).setValues([['Indikator', 'Nilai / Total', 'Keterangan']])
+    .setBackground('#012669').setFontColor('#FFFFFF').setFontWeight('bold');
+
+  var rowsC = [
+    ['Total Hari/Shift Absensi Tercatat', '=COUNTA(Absensi!A2:A)', 'Jumlah baris log absensi kru'],
+    ['Total Jam Kerja Karyawan (Jam)', '=SUM(Absensi!G2:G)', 'Akumulasi durasi kerja seluruh kru'],
+    ['Total Pinjaman / Kasbon Diberikan (Rp)', '=SUM(Kasbon_Pinjaman!D2:D)', 'Total pinjaman & kasbon tercatat'],
+    ['Total Cicilan / Potongan Terbayar (Rp)', '=SUM(Kasbon_Pinjaman!G2:G)', 'Total yang sudah dibayar / dipotong'],
+    ['Sisa Pinjaman / Kasbon Aktif (Rp)', '=SUM(Kasbon_Pinjaman!H2:H)', 'Sisa hutang karyawan yang belum lunas'],
+    ['Total Gaji Bersih / Payroll Dibayar (Rp)', '=SUM(Payroll!J2:J)', 'Total net pay pada log payroll'],
+    ['Jumlah Slip Payroll Tercatat', '=COUNTA(Payroll!A2:A)', 'Total slip gaji yang sudah dibuat'],
+  ];
+  sheet.getRange(rStartC, 1, rowsC.length, 3).setValues(rowsC);
+  sheet.getRange(rStartC, 2, rowsC.length, 1).setNumberFormat('#,##0');
 }

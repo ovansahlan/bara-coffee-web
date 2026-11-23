@@ -1009,6 +1009,81 @@ export default function OwnerDashboardView({
               })}
             </div>
 
+            {outlets.length > 0 && expenseCategories.length > 0 && (
+              <div className="rounded-lg border border-[var(--card-border)] bg-[var(--background)] p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-semibold text-[var(--foreground)]">
+                    Ringkasan Pembelanjaan per Kategori &amp; Outlet
+                  </h4>
+                  <span className="text-[11px] text-[var(--muted-foreground)]">
+                    {outlets.length} outlet &middot; {expenseCategories.length} kategori
+                  </span>
+                </div>
+                <div className="-mx-3 px-3 sm:mx-0 sm:px-0 overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-xs text-left border-collapse tabular-nums">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                        <th className="py-1.5 pr-3 font-medium">Outlet</th>
+                        {expenseCategories.map((cat) => (
+                          <th key={cat} className="py-1.5 px-2 font-medium text-right">
+                            {cat}
+                          </th>
+                        ))}
+                        <th className="py-1.5 pl-2 font-medium text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--card-border)]">
+                      {outlets.map((o) => {
+                        const outletExps = allExpenses.filter((e) => e.outletName === o.name);
+                        const outletTotal = outletExps.reduce((s, e) => s + e.amount, 0);
+                        return (
+                          <tr key={o.id} className="hover:bg-[var(--card)]">
+                            <td className="py-1.5 pr-3 font-medium whitespace-nowrap">{o.name}</td>
+                            {expenseCategories.map((cat) => {
+                              const catSum = outletExps
+                                .filter((e) => e.category === cat)
+                                .reduce((s, e) => s + e.amount, 0);
+                              return (
+                                <td
+                                  key={cat}
+                                  className={`py-1.5 px-2 text-right whitespace-nowrap ${
+                                    catSum > 0 ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'
+                                  }`}
+                                >
+                                  {catSum > 0 ? formatRp(catSum) : '-'}
+                                </td>
+                              );
+                            })}
+                            <td className="py-1.5 pl-2 text-right font-semibold text-[var(--error)] whitespace-nowrap">
+                              {formatRp(outletTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-[var(--border)] bg-[var(--secondary)]/60 font-semibold">
+                        <td className="py-1.5 pr-3">Total per Kategori</td>
+                        {expenseCategories.map((cat) => {
+                          const catGrand = allExpenses
+                            .filter((e) => e.category === cat)
+                            .reduce((s, e) => s + e.amount, 0);
+                          return (
+                            <td key={cat} className="py-1.5 px-2 text-right whitespace-nowrap">
+                              {formatRp(catGrand)}
+                            </td>
+                          );
+                        })}
+                        <td className="py-1.5 pl-2 text-right text-[var(--error)] whitespace-nowrap">
+                          {formatRp(allExpenses.reduce((s, e) => s + e.amount, 0))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
             <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
               <table className="w-full min-w-[780px] text-xs text-left border-collapse">
                 <thead>

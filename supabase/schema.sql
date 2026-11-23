@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS google_sheets_webhook_url TEXT NOT NULL DEFAULT '';
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS google_sheets_auto_sync BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS google_sheets_last_sync TIMESTAMPTZ;
+NOTIFY pgrst, 'reload schema';
 
 -- 2. Daftar Outlet & PIN Masing-Masing Kasir
 CREATE TABLE IF NOT EXISTS public.outlets (

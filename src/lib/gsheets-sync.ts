@@ -24,8 +24,9 @@ export interface GoogleSheetsSyncResult {
 }
 
 export async function buildGoogleSheetsSyncPayload() {
-  const [outlets, shifts, attendances, cashAdvances, payrolls] = await Promise.all([
+  const [outlets, settings, shifts, attendances, cashAdvances, payrolls] = await Promise.all([
     getOutletsAdmin(),
+    getAppSettings(),
     fetchHydratedShifts({ includeCorrections: false }),
     fetchAttendances({}),
     fetchCashAdvances({}),
@@ -164,6 +165,7 @@ export async function buildGoogleSheetsSyncPayload() {
 
   return {
     outlets: outlets.map((o) => o.name),
+    categories: settings.expenseCategories,
     tabs: {
       Transaksi_Harian: transaksiRows,
       Pembelanjaan: pembelanjaanRows,
