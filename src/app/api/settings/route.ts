@@ -99,6 +99,20 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: 'Minimal harus ada 1 outlet aktif.' }, { status: 400 });
       }
       await deleteOutletById(id);
+    } else if (action === 'update_google_sheets') {
+      const url = typeof body.googleSheetsWebhookUrl === 'string' ? body.googleSheetsWebhookUrl.trim() : '';
+      if (url && !url.startsWith('https://script.google.com/')) {
+        return NextResponse.json(
+          { error: 'URL Webhook harus diawali https://script.google.com/...' },
+          { status: 400 }
+        );
+      }
+      await updateAppSettings({
+        ...(typeof body.googleSheetsWebhookUrl === 'string' ? { googleSheetsWebhookUrl: url } : {}),
+        ...(typeof body.googleSheetsAutoSync === 'boolean'
+          ? { googleSheetsAutoSync: body.googleSheetsAutoSync }
+          : {}),
+      });
     } else {
       return NextResponse.json({ error: 'Aksi tidak dikenal.' }, { status: 400 });
     }

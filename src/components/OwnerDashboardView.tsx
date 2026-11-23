@@ -74,6 +74,21 @@ export default function OwnerDashboardView({
   const [todayCards, setTodayCards] = useState<TodayOutletCard[]>([]);
   const [shifts, setShifts] = useState<ShiftRecord[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<ShiftRecord | null>(null);
+  const [syncingSheet, setSyncingSheet] = useState(false);
+
+  async function handleSyncGoogleSheet() {
+    setSyncingSheet(true);
+    try {
+      const res = await fetch('/api/sync-sheets', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal sinkronisasi ke Google Sheets.');
+      onToast('Data berhasil disinkronkan ke Google Sheets!', 'success');
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Gagal sinkronisasi Google Sheets.', 'error');
+    } finally {
+      setSyncingSheet(false);
+    }
+  }
 
   const loadDashboard = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -386,10 +401,18 @@ export default function OwnerDashboardView({
               Status live Shift 1 &amp; Shift 2, omset hari ini, serta Saldo Kas Berjalan tiap outlet.
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <span className="text-xs font-semibold tabular-nums px-3 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)]">
               Total Omset Hari Ini: {formatRp(todayCombinedOmset)}
             </span>
+            <button
+              type="button"
+              disabled={syncingSheet}
+              onClick={handleSyncGoogleSheet}
+              className="px-2.5 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 disabled:opacity-50 text-xs font-semibold cursor-pointer"
+            >
+              {syncingSheet ? 'Menyinkronkan...' : 'Sync Sheet'}
+            </button>
             <button
               type="button"
               onClick={() => loadDashboard()}

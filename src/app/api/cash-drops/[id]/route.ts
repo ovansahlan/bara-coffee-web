@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
+import { syncToGoogleSheets } from '@/lib/gsheets-sync';
 import { getSession } from '@/lib/session';
 import {
   cascadeRunningBalancesInDb,
@@ -40,6 +41,7 @@ export async function DELETE(
     await deleteCashDropById(drop);
     const cascaded = await cascadeRunningBalancesInDb(drop.outletId, { includeCorrections: true });
     const updatedShift = cascaded.find((s) => s.id === drop.shiftId) || null;
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true, shift: updatedShift });
   } catch (err) {
     return NextResponse.json(

@@ -55,6 +55,9 @@ export async function getAppSettings(): Promise<AppSettingsAdmin> {
           ? [...local.settings.expenseCategories]
           : [...DEFAULT_EXPENSE_CATEGORIES],
       shiftSchedule: local.settings.shiftSchedule || { ...DEFAULT_SHIFT_SCHEDULE },
+      googleSheetsWebhookUrl: String(local.settings.googleSheetsWebhookUrl || ''),
+      googleSheetsAutoSync: Boolean(local.settings.googleSheetsAutoSync),
+      googleSheetsLastSync: local.settings.googleSheetsLastSync || null,
     };
   }
 
@@ -95,6 +98,9 @@ export async function getAppSettings(): Promise<AppSettingsAdmin> {
           lateGraceMinutes: Number(data.shift_schedule.lateGraceMinutes ?? DEFAULT_SHIFT_SCHEDULE.lateGraceMinutes),
         }
       : { ...DEFAULT_SHIFT_SCHEDULE },
+    googleSheetsWebhookUrl: String(data.google_sheets_webhook_url || ''),
+    googleSheetsAutoSync: Boolean(data.google_sheets_auto_sync),
+    googleSheetsLastSync: data.google_sheets_last_sync || null,
   };
 }
 
@@ -103,6 +109,9 @@ export async function updateAppSettings(updates: {
   requireOwnerPinForCorrection?: boolean;
   expenseCategories?: string[];
   shiftSchedule?: ShiftScheduleConfig;
+  googleSheetsWebhookUrl?: string;
+  googleSheetsAutoSync?: boolean;
+  googleSheetsLastSync?: string | null;
 }): Promise<void> {
   if (isLocalDbEnabled()) {
     const local = readLocalDb();
@@ -115,6 +124,15 @@ export async function updateAppSettings(updates: {
     }
     if (updates.shiftSchedule) {
       local.settings.shiftSchedule = { ...updates.shiftSchedule };
+    }
+    if (typeof updates.googleSheetsWebhookUrl === 'string') {
+      local.settings.googleSheetsWebhookUrl = updates.googleSheetsWebhookUrl;
+    }
+    if (typeof updates.googleSheetsAutoSync === 'boolean') {
+      local.settings.googleSheetsAutoSync = updates.googleSheetsAutoSync;
+    }
+    if (updates.googleSheetsLastSync !== undefined) {
+      local.settings.googleSheetsLastSync = updates.googleSheetsLastSync;
     }
     writeLocalDb(local);
     return;
@@ -131,6 +149,15 @@ export async function updateAppSettings(updates: {
   }
   if (updates.shiftSchedule) {
     dbUpdates.shift_schedule = updates.shiftSchedule;
+  }
+  if (typeof updates.googleSheetsWebhookUrl === 'string') {
+    dbUpdates.google_sheets_webhook_url = updates.googleSheetsWebhookUrl;
+  }
+  if (typeof updates.googleSheetsAutoSync === 'boolean') {
+    dbUpdates.google_sheets_auto_sync = updates.googleSheetsAutoSync;
+  }
+  if (updates.googleSheetsLastSync !== undefined) {
+    dbUpdates.google_sheets_last_sync = updates.googleSheetsLastSync;
   }
   const { error } = await db.from('app_settings').update(dbUpdates).eq('id', 1);
   if (error) throw new Error(error.message);

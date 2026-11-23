@@ -142,6 +142,9 @@ export interface AppSettingsPublic {
 
 export interface AppSettingsAdmin extends AppSettingsPublic {
   ownerPin: string;
+  googleSheetsWebhookUrl?: string;
+  googleSheetsAutoSync?: boolean;
+  googleSheetsLastSync?: string | null;
 }
 
 export type PayType = 'monthly' | 'daily';

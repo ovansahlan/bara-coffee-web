@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
+import { syncToGoogleSheets } from '@/lib/gsheets-sync';
 import { getSession } from '@/lib/session';
 import {
   applyEmployeeKasbonDeductionFIFO,
@@ -163,6 +164,7 @@ export async function POST(req: Request) {
     }
 
     const payrolls = await fetchPayrolls();
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true, payroll: run, payrolls });
   } catch (err) {
     return NextResponse.json(
@@ -185,6 +187,7 @@ export async function DELETE(req: Request) {
 
     await deletePayrollRunById(id);
     const payrolls = await fetchPayrolls();
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true, payrolls });
   } catch (err) {
     return NextResponse.json(

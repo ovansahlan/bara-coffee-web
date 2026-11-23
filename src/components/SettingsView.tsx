@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { DEFAULT_SHIFT_SCHEDULE, formatPlain, formatRp, parseNum } from '@/lib/calc';
+import { DEFAULT_SHIFT_SCHEDULE, formatDateTimeShort, formatPlain, formatRp, parseNum } from '@/lib/calc';
 import type { AppSettingsAdmin, EmployeeAdmin, OutletAdmin, ShiftScheduleConfig } from '@/lib/types';
 
 interface SettingsViewProps {
@@ -32,10 +32,12 @@ export default function SettingsView({ onSettingsUpdated, onToast }: SettingsVie
   const [showOutletPin, setShowOutletPin] = useState(false);
   const [schedule, setSchedule] = useState<ShiftScheduleConfig>(DEFAULT_SHIFT_SCHEDULE);
 
-  // Security & Categories
+  // Security & Categories & Google Sheets Sync
   const [ownerPinInput, setOwnerPinInput] = useState('');
   const [showOwnerPin, setShowOwnerPin] = useState(false);
   const [newCat, setNewCat] = useState('');
+  const [sheetsUrlInput, setSheetsUrlInput] = useState('');
+  const [syncingSheets, setSyncingSheets] = useState(false);
 
   // Delete confirmations
   const [deleteOutletTarget, setDeleteOutletTarget] = useState<OutletAdmin | null>(null);
@@ -54,6 +56,7 @@ export default function SettingsView({ onSettingsUpdated, onToast }: SettingsVie
         if (signal?.aborted) return;
         setSettings(setData.settings);
         setOwnerPinInput(setData.settings.ownerPin);
+        setSheetsUrlInput(setData.settings.googleSheetsWebhookUrl || '');
         setSchedule(setData.settings.shiftSchedule || DEFAULT_SHIFT_SCHEDULE);
         setOutlets(setData.outlets || []);
         setEmployees(empData.employees || []);
@@ -84,6 +87,7 @@ export default function SettingsView({ onSettingsUpdated, onToast }: SettingsVie
       if (!res.ok) throw new Error(data.error || 'Gagal menyimpan.');
       setSettings(data.settings);
       setOwnerPinInput(data.settings.ownerPin);
+      setSheetsUrlInput(data.settings.googleSheetsWebhookUrl || '');
       setSchedule(data.settings.shiftSchedule || DEFAULT_SHIFT_SCHEDULE);
       setOutlets(data.outlets || []);
       await onSettingsUpdated();
@@ -689,6 +693,97 @@ export default function SettingsView({ onSettingsUpdated, onToast }: SettingsVie
                 Tambah
               </button>
             </form>
+          </section>
+
+          <section className="lg:col-span-2 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[var(--card-border)]">
+              <div>
+                <h3 className="text-sm font-semibold">Otomatisasi Rekap ke Google Sheets</h3>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Hubungkan aplikasi ke Google Sheet Anda via Google Apps Script Web App agar transaksi, belanja, setor,
+                  absensi, kasbon, dan payroll tersinkron otomatis.
+                </p>
+              </div>
+              {settings.googleSheetsLastSync && (
+                <span className="text-[11px] text-[var(--muted-foreground)] tabular-nums shrink-0">
+                  Sync terakhir: {formatDateTimeShort(settings.googleSheetsLastSync)}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              <div className="sm:col-span-8 space-y-1">
+                <label className="text-xs text-[var(--muted-foreground)] block">
+                  URL Web App Apps Script (https://script.google.com/macros/s/.../exec)
+                </label>
+                <input
+                  type="url"
+                  value={sheetsUrlInput}
+                  onChange={(e) => setSheetsUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-xs font-mono"
+                />
+              </div>
+              <div className="sm:col-span-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    patchSettings(
+                      { action: 'update_google_sheets', googleSheetsWebhookUrl: sheetsUrlInput },
+                      'URL Google Sheets Webhook disimpan.'
+                    )
+                  }
+                  className="flex-1 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--secondary)] text-xs font-semibold cursor-pointer"
+                >
+                  Simpan URL
+                </button>
+                <button
+                  type="button"
+                  disabled={syncingSheets}
+                  onClick={async () => {
+                    setSyncingSheets(true);
+                    try {
+                      const res = await fetch('/api/sync-sheets', { method: 'POST' });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error || 'Gagal sinkronisasi.');
+                      await loadSettings();
+                      onToast('Sinkronisasi ke Google Sheets berhasil!', 'success');
+                    } catch (err) {
+                      onToast(err instanceof Error ? err.message : 'Gagal sinkronisasi.', 'error');
+                    } finally {
+                      setSyncingSheets(false);
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-xs font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                >
+                  {syncingSheets ? 'Menyinkron...' : 'Sync Sekarang'}
+                </button>
+              </div>
+            </div>
+
+            <label className="flex items-start gap-2.5 p-3 rounded-lg bg-[var(--background)] border border-[var(--border)] text-xs cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.googleSheetsAutoSync)}
+                onChange={(e) =>
+                  patchSettings(
+                    { action: 'update_google_sheets', googleSheetsAutoSync: e.target.checked },
+                    e.target.checked
+                      ? 'Auto-Sync ke Google Sheets diaktifkan.'
+                      : 'Auto-Sync ke Google Sheets dimatikan.'
+                  )
+                }
+                className="accent-[var(--primary)] rounded mt-0.5 cursor-pointer"
+              />
+              <span>
+                <strong className="block text-[var(--foreground)]">
+                  Auto-Sync Otomatis setiap ada Transaksi, Absensi, Kasbon, atau Payroll
+                </strong>
+                <span className="text-[11px] text-[var(--muted-foreground)]">
+                  Berjalan di latar belakang setelah data tersimpan ke Supabase sehingga tidak memperlambat input kasir.
+                </span>
+              </span>
+            </label>
           </section>
         </div>
       )}

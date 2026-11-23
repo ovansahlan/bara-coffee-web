@@ -12,8 +12,16 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
   require_owner_pin_for_correction BOOLEAN NOT NULL DEFAULT FALSE,
   expense_categories JSONB NOT NULL DEFAULT '["Minuman","Makanan","Lain-Lain"]'::jsonb,
   shift_schedule JSONB NOT NULL DEFAULT '{"shift1Start":"08:00","shift1End":"15:00","shift2Start":"15:00","shift2End":"22:00","lateGraceMinutes":10}'::jsonb,
+  google_sheets_webhook_url TEXT NOT NULL DEFAULT '',
+  google_sheets_auto_sync BOOLEAN NOT NULL DEFAULT FALSE,
+  google_sheets_last_sync TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Tambahan aman untuk database yang sudah ada
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS google_sheets_webhook_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS google_sheets_auto_sync BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS google_sheets_last_sync TIMESTAMPTZ;
 
 -- 2. Daftar Outlet & PIN Masing-Masing Kasir
 CREATE TABLE IF NOT EXISTS public.outlets (

@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
+import { syncToGoogleSheets } from '@/lib/gsheets-sync';
 import { getSession } from '@/lib/session';
 import {
   deleteAttendanceById,
@@ -103,6 +104,7 @@ export async function POST(req: Request) {
       note,
     });
 
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true, attendance: record });
   } catch (err) {
     return NextResponse.json(
@@ -144,6 +146,7 @@ export async function PATCH(req: Request) {
       note: typeof body?.note === 'string' ? body.note : undefined,
     });
 
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
@@ -165,6 +168,7 @@ export async function DELETE(req: Request) {
     if (!id) return NextResponse.json({ error: 'ID absensi tidak valid.' }, { status: 400 });
 
     await deleteAttendanceById(id);
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(

@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
+import { syncToGoogleSheets } from '@/lib/gsheets-sync';
 import { getSession, safeComparePin } from '@/lib/session';
 import {
   cascadeRunningBalancesInDb,
@@ -340,6 +341,7 @@ export async function PUT(req: Request) {
       shiftNum,
       outlet?.defaultOpeningCash || 0
     );
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({
       ok: true,
       shift: finalShift,

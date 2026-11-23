@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
+import { syncToGoogleSheets } from '@/lib/gsheets-sync';
 import { getSession } from '@/lib/session';
 import {
   addCashAdvanceRepayment,
@@ -147,6 +148,7 @@ export async function POST(req: Request) {
         createdBy: 'Owner',
       });
 
+      after(() => syncToGoogleSheets({ force: false }));
       return NextResponse.json({ ok: true, advance });
     }
 
@@ -208,6 +210,7 @@ export async function POST(req: Request) {
       createdBy: employee.name,
     });
 
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true, advance });
   } catch (err) {
     return NextResponse.json(
@@ -242,6 +245,7 @@ export async function PATCH(req: Request) {
       date: typeof body?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : getLocalDateStr(0),
     });
 
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(
@@ -263,6 +267,7 @@ export async function DELETE(req: Request) {
     if (!id) return NextResponse.json({ error: 'ID kasbon tidak valid.' }, { status: 400 });
 
     await deleteCashAdvanceById(id);
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json(

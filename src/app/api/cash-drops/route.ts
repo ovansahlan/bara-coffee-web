@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
+import { syncToGoogleSheets } from '@/lib/gsheets-sync';
 import { getSession } from '@/lib/session';
 import {
   addCashDropToShift,
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
 
     const cascaded = await cascadeRunningBalancesInDb(outletId, { includeCorrections: true });
     const updatedShift = cascaded.find((s) => s.id === shiftId) || null;
+    after(() => syncToGoogleSheets({ force: false }));
     return NextResponse.json({ ok: true, shift: updatedShift });
   } catch (err) {
     return NextResponse.json(
