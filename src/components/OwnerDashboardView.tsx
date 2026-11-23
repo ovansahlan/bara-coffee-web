@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_CASH_DROP_METHODS, calcShiftMetrics, formatDateIndo, formatDateTimeShort, formatRp, getLocalDateStr } from '@/lib/calc';
-import type { AppSettingsPublic, OutletPublic, ShiftRecord } from '@/lib/types';
+import type { AppSettingsPublic, OutletPublic, OwnerExpenseRecord, ShiftRecord } from '@/lib/types';
 
 interface TodayOutletCard {
   outlet: OutletPublic;
@@ -73,6 +73,7 @@ export default function OwnerDashboardView({
   const [outlets, setOutlets] = useState<OutletPublic[]>([]);
   const [todayCards, setTodayCards] = useState<TodayOutletCard[]>([]);
   const [shifts, setShifts] = useState<ShiftRecord[]>([]);
+  const [ownerExpenses, setOwnerExpenses] = useState<OwnerExpenseRecord[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<ShiftRecord | null>(null);
   const [syncingSheet, setSyncingSheet] = useState(false);
 
@@ -102,6 +103,7 @@ export default function OwnerDashboardView({
       setOutlets(data.outlets || []);
       setTodayCards(data.todayCards || []);
       setShifts(data.shifts || []);
+      setOwnerExpenses(data.ownerExpenses || []);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       onToast(err instanceof Error ? err.message : 'Gagal memuat Dashboard.', 'error');
@@ -1140,6 +1142,58 @@ export default function OwnerDashboardView({
                 )}
               </table>
             </div>
+          </section>
+
+          {/* Pengeluaran Langsung Owner */}
+          <section className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 sm:p-5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div>
+                <h3 className="text-sm font-semibold">Pengeluaran Langsung Owner</h3>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Belanja bahan &amp; operasional (listrik, WiFi, sewa, dll) di luar kas laci kasir. Input lewat tab <strong>Pengeluaran Owner</strong>.
+                </p>
+              </div>
+              <div className="text-sm font-bold tabular-nums text-[var(--error)]">
+                Total: {formatRp(ownerExpenses.reduce((s, e) => s + e.amount, 0))}
+              </div>
+            </div>
+
+            {ownerExpenses.length === 0 ? (
+              <p className="text-xs text-[var(--muted-foreground)] py-3 text-center border border-dashed border-[var(--border)] rounded-lg">
+                Belum ada pengeluaran langsung owner pada rentang filter ini.
+              </p>
+            ) : (
+              <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+                <table className="w-full min-w-[640px] text-xs text-left border-collapse tabular-nums">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] text-[var(--muted-foreground)]">
+                      <th className="py-2 pr-3 font-medium">Tanggal</th>
+                      <th className="py-2 px-2 font-medium">Kategori</th>
+                      <th className="py-2 px-2 font-medium">Outlet Terkait</th>
+                      <th className="py-2 px-2 font-medium">Keterangan</th>
+                      <th className="py-2 pl-2 font-medium text-right">Nominal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--card-border)]">
+                    {ownerExpenses.slice(0, 10).map((it) => (
+                      <tr key={it.id} className="hover:bg-[var(--background)]">
+                        <td className="py-2 pr-3 whitespace-nowrap">{formatDateIndo(it.date)}</td>
+                        <td className="py-2 px-2 whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded bg-[var(--secondary)] font-medium">{it.category}</span>
+                        </td>
+                        <td className="py-2 px-2">
+                          {it.outletIds.map((id) => outletMap.get(id)?.name || id).join(', ')}
+                        </td>
+                        <td className="py-2 px-2">{it.description}</td>
+                        <td className="py-2 pl-2 text-right font-semibold text-[var(--error)] whitespace-nowrap">
+                          -{formatRp(it.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </>
       )}

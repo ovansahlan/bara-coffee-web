@@ -24,6 +24,7 @@ function doPost(e) {
       'Absensi',
       'Kasbon_Pinjaman',
       'Payroll',
+      'Pengeluaran_Owner',
     ];
 
     var counts = {};
@@ -33,6 +34,11 @@ function doPost(e) {
       var sheet = ss.getSheetByName(name);
       if (!sheet) {
         sheet = ss.insertSheet(name);
+        if (name === 'Pengeluaran_Owner') {
+          sheet.getRange(1, 1, 1, 7).setValues([[
+            'Tanggal', 'Kategori', 'Outlet Terkait', 'Keterangan', 'Metode Bayar', 'Nominal (Rp)', 'Catatan'
+          ]]).setBackground('#012669').setFontColor('#FFFFFF').setFontWeight('bold');
+        }
       }
 
       var lastRow = sheet.getLastRow();
@@ -47,9 +53,9 @@ function doPost(e) {
       counts[name] = rows.length;
     }
 
-    // Perbarui tab Ringkasan secara dinamis (Section A: Outlet, Section B: Kategori per Outlet, Section C: Absensi/Kasbon/Payroll)
+    // Perbarui tab Ringkasan secara dinamis (Section A: Outlet, Section B: Kategori per Outlet, Section C: Absensi/Kasbon/Payroll, Section D: Pengeluaran Owner)
     if (Array.isArray(payload.outlets) && payload.outlets.length > 0) {
-      rebuildSummarySheet(ss, payload.outlets, payload.categories);
+      rebuildSummarySheet(ss, payload.outlets, payload.categories, payload.ownerCategories);
     }
 
     return ContentService.createTextOutput(
@@ -72,7 +78,7 @@ function colLetter(n) {
   return s;
 }
 
-function rebuildSummarySheet(ss, outlets, categories) {
+function rebuildSummarySheet(ss, outlets, categories, ownerCategories) {
   var sheet = ss.getSheetByName('Ringkasan');
   if (!sheet) return;
 
@@ -194,4 +200,42 @@ function rebuildSummarySheet(ss, outlets, categories) {
   ];
   sheet.getRange(rStartC, 1, rowsC.length, 3).setValues(rowsC);
   sheet.getRange(rStartC, 2, rowsC.length, 1).setNumberFormat('#,##0');
+
+  // --- SECTION D: REKAP PENGELUARAN LANGSUNG OWNER ---
+  var ownerCats = Array.isArray(ownerCategories) && ownerCategories.length > 0
+    ? ownerCategories
+    : ['Belanja Bahan', 'Operasional', 'Perlengkapan', 'Lain-Lain'];
+  var rTitleD = rStartC + rowsC.length + 1;
+  var rHdrD = rTitleD + 1;
+  var rStartD = rHdrD + 1;
+
+  sheet.getRange(rTitleD, 1).setValue('D. REKAP PENGELUARAN LANGSUNG OWNER')
+    .setFontWeight('bold').setFontSize(11).setFontColor('#012669');
+  sheet.getRange(rHdrD, 1, 1, 3).setValues([['Kategori Pengeluaran Owner', 'Total (Rp)', 'Keterangan']])
+    .setBackground('#012669').setFontColor('#FFFFFF').setFontWeight('bold');
+
+  var rowsD = [];
+  for (var d = 0; d < ownerCats.length; d++) {
+    var rd = rStartD + d;
+    rowsD.push([
+      ownerCats[d],
+      '=SUMIF(Pengeluaran_Owner!$B$2:$B, A' + rd + ', Pengeluaran_Owner!$F$2:$F)',
+      ownerCats[d] === 'Belanja Bahan'
+        ? 'Belanja bahan langsung oleh owner'
+        : ownerCats[d] === 'Operasional'
+          ? 'Listrik, WiFi, sewa, air, dll'
+          : 'Pengeluaran owner kategori ' + ownerCats[d],
+    ]);
+  }
+  sheet.getRange(rStartD, 1, rowsD.length, 3).setValues(rowsD);
+  sheet.getRange(rStartD, 2, rowsD.length, 1).setNumberFormat('#,##0');
+
+  var rEndD = rStartD + ownerCats.length - 1;
+  var rTotalD = rEndD + 1;
+  sheet.getRange(rTotalD, 1, 1, 3).setValues([[
+    'TOTAL PENGELUARAN OWNER',
+    '=SUM(B' + rStartD + ':B' + rEndD + ')',
+    'Total seluruh pengeluaran langsung owner',
+  ]]).setBackground('#E8F0FA').setFontWeight('bold');
+  sheet.getRange(rTotalD, 2, 1, 1).setNumberFormat('#,##0');
 }

@@ -276,3 +276,15 @@ export interface CrewPayslipEntry {
   paidAt: string | null;
   item: PayrollItemRecord;
 }
+
+export interface OwnerExpenseRecord {
+  id: string;
+  date: string;
+  category: string;
+  outletIds: string[];
+  description: string;
+  amount: number;
+  paymentMethod: string;
+  notes: string;
+  createdAt: string;
+}

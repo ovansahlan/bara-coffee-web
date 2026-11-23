@@ -208,6 +208,21 @@ CREATE TABLE IF NOT EXISTS public.payrolls (
   paid_at TIMESTAMPTZ
 );
 
+-- 11. Pengeluaran Langsung Owner (Belanja Bahan & Operasional Multi-Outlet)
+CREATE TABLE IF NOT EXISTS public.owner_expenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Belanja Bahan',
+  outlet_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+  description TEXT NOT NULL,
+  amount BIGINT NOT NULL CHECK (amount > 0),
+  payment_method TEXT NOT NULL DEFAULT 'Transfer',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_owner_expenses_date ON public.owner_expenses (date DESC);
+
 -- Aktifkan Row Level Security (RLS) tanpa policy anon agar akses publik langsung tertutup.
 -- Seluruh query dilakukan aman lewat Next.js API Routes menggunakan SUPABASE_SERVICE_ROLE_KEY.
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
@@ -221,6 +236,7 @@ ALTER TABLE public.attendances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_advances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_advance_repayments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payrolls ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.owner_expenses ENABLE ROW LEVEL SECURITY;
 
 -- Pastikan role service_role memiliki hak akses penuh pada seluruh tabel & sequence
 GRANT USAGE ON SCHEMA public TO service_role;

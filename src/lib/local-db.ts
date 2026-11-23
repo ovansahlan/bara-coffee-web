@@ -11,6 +11,7 @@ import type {
   EmployeeAdmin,
   ExpenseRecord,
   OutletAdmin,
+  OwnerExpenseRecord,
   PayrollRunRecord,
   ShiftRecord,
 } from './types';
@@ -28,6 +29,7 @@ export interface LocalDbData {
     Omit<CashAdvanceRecord, 'employeeName' | 'paidAmount' | 'remainingAmount' | 'status'> & { createdAt: string }
   >;
   payrolls: PayrollRunRecord[];
+  ownerExpenses?: OwnerExpenseRecord[];
 }
 
 const LOCAL_DB_DIR = path.join(process.cwd(), '.local-data');

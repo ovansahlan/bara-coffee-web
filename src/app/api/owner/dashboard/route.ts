@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
 import { fetchHydratedShifts, getOutletsPublic } from '@/lib/db';
+import { fetchOwnerExpenses } from '@/lib/hr-db';
 import { calcShiftMetrics, getLocalDateStr, makeShiftId } from '@/lib/calc';
 
 export const dynamic = 'force-dynamic';
@@ -26,9 +27,13 @@ export async function GET(req: Request) {
             ? getLocalDateStr(-29)
             : null;
 
-    const [outlets, allShifts] = await Promise.all([
+    const [outlets, allShifts, ownerExpenses] = await Promise.all([
       getOutletsPublic(),
       fetchHydratedShifts({}),
+      fetchOwnerExpenses({
+        fromDate: fromDate || undefined,
+        outletId: outletFilter !== 'all' ? outletFilter : undefined,
+      }).catch(() => []),
     ]);
 
     // Build today's live cards per outlet + continuous running cash balance
@@ -67,6 +72,7 @@ export async function GET(req: Request) {
       outlets,
       todayCards,
       shifts: filteredShifts,
+      ownerExpenses,
     });
   } catch (err) {
     return NextResponse.json(

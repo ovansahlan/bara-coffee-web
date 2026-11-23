@@ -12,6 +12,7 @@ import {
 import {
   fetchAttendances,
   fetchCashAdvances,
+  fetchOwnerExpenses,
   fetchPayrolls,
 } from './hr-db';
 
@@ -24,13 +25,14 @@ export interface GoogleSheetsSyncResult {
 }
 
 export async function buildGoogleSheetsSyncPayload() {
-  const [outlets, settings, shifts, attendances, cashAdvances, payrolls] = await Promise.all([
+  const [outlets, settings, shifts, attendances, cashAdvances, payrolls, ownerExpenses] = await Promise.all([
     getOutletsAdmin(),
     getAppSettings(),
     fetchHydratedShifts({ includeCorrections: false }),
     fetchAttendances({}),
     fetchCashAdvances({}),
     fetchPayrolls(),
+    fetchOwnerExpenses({}).catch(() => []),
   ]);
 
   const outletNameById = new Map(outlets.map((o) => [o.id, o.name]));
@@ -163,9 +165,20 @@ export async function buildGoogleSheetsSyncPayload() {
     ])
   );
 
+  const pengeluaranOwnerRows = ownerExpenses.map((e) => [
+    e.date,
+    e.category,
+    e.outletIds.map((id) => resolveOutletName(id)).join(', '),
+    e.description,
+    e.paymentMethod,
+    e.amount,
+    e.notes || '',
+  ]);
+
   return {
     outlets: outlets.map((o) => o.name),
     categories: settings.expenseCategories,
+    ownerCategories: ['Belanja Bahan', 'Operasional', 'Perlengkapan', 'Lain-Lain'],
     tabs: {
       Transaksi_Harian: transaksiRows,
       Pembelanjaan: pembelanjaanRows,
@@ -173,6 +186,7 @@ export async function buildGoogleSheetsSyncPayload() {
       Absensi: absensiRows,
       Kasbon_Pinjaman: kasbonRows,
       Payroll: payrollRows,
+      Pengeluaran_Owner: pengeluaranOwnerRows,
     },
   };
 }

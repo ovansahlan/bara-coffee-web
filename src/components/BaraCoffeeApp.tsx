@@ -12,9 +12,11 @@ import AttendanceView from './AttendanceView';
 import CashAdvanceView from './CashAdvanceView';
 import PayrollView from './PayrollView';
 import CrewPayslipView from './CrewPayslipView';
+import OwnerExpensesView from './OwnerExpensesView';
 
 type ActiveTab =
   | 'owner'
+  | 'owner-expenses'
   | 'input'
   | 'outlet-history'
   | 'absensi'
@@ -63,6 +65,15 @@ function NavIcon({ id }: { id: ActiveTab }) {
         <circle cx="12" cy="12" r="2.5" />
         <path d="M6 12h.01" />
         <path d="M18 12h.01" />
+      </svg>
+    );
+  }
+  if (id === 'owner-expenses') {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+        <path d="M3 6h18" />
+        <path d="M16 10a4 4 0 0 1-8 0" />
       </svg>
     );
   }
@@ -233,6 +244,7 @@ export default function BaraCoffeeApp() {
   const navItems: Array<{ id: ActiveTab; label: string; shortLabel: string }> = isOwner
     ? [
         { id: 'owner', label: 'Dashboard', shortLabel: 'Home' },
+        { id: 'owner-expenses', label: 'Pengeluaran Owner', shortLabel: 'Belanja' },
         { id: 'input', label: 'Input / Audit', shortLabel: 'Shift' },
         { id: 'absensi', label: 'Rekap Absensi', shortLabel: 'Absen' },
         { id: 'kasbon', label: 'Rekap Kasbon', shortLabel: 'Kasbon' },
@@ -344,6 +356,10 @@ export default function BaraCoffeeApp() {
           />
         )}
 
+        {tab === 'owner-expenses' && isOwner && (
+          <OwnerExpensesView outlets={outlets} onToast={showToast} />
+        )}
+
         {tab === 'input' && currentOutlet && (
           <ShiftInputView
             role={role}
@@ -418,13 +434,15 @@ export default function BaraCoffeeApp() {
       >
         <div
           className={`max-w-2xl mx-auto grid ${
-            navItems.length === 6
-              ? 'grid-cols-6'
-              : navItems.length === 5
-                ? 'grid-cols-5'
-                : navItems.length === 4
-                  ? 'grid-cols-4'
-                  : 'grid-cols-3'
+            navItems.length === 7
+              ? 'grid-cols-7'
+              : navItems.length === 6
+                ? 'grid-cols-6'
+                : navItems.length === 5
+                  ? 'grid-cols-5'
+                  : navItems.length === 4
+                    ? 'grid-cols-4'
+                    : 'grid-cols-3'
           }`}
         >
           {navItems.map((item) => {

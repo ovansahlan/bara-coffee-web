@@ -25,6 +25,7 @@ import type {
   CashAdvanceType,
   EmployeeAdmin,
   EmployeePublic,
+  OwnerExpenseRecord,
   PayrollItemRecord,
   PayrollRunRecord,
   SessionPayload,
@@ -1124,4 +1125,153 @@ export async function verifyCrewPinForOutletSession(
   }
 
   return { ok: true, employee: emp, outletId: activeOutletId };
+}
+
+// ============================================================
+// PENGELUARAN LANGSUNG OWNER (BELANJA BAHAN & OPERASIONAL)
+// ============================================================
+
+export async function fetchOwnerExpenses(filters?: {
+  fromDate?: string;
+  toDate?: string;
+  category?: string;
+  outletId?: string;
+}): Promise<OwnerExpenseRecord[]> {
+  if (isLocalDbEnabled()) {
+    const local = readLocalDb();
+    let list = [...(local.ownerExpenses || [])];
+    if (filters?.fromDate) list = list.filter((e) => e.date >= filters.fromDate!);
+    if (filters?.toDate) list = list.filter((e) => e.date <= filters.toDate!);
+    if (filters?.category && filters.category !== 'all') {
+      list = list.filter((e) => e.category === filters.category);
+    }
+    if (filters?.outletId && filters.outletId !== 'all') {
+      list = list.filter((e) => e.outletIds.includes(filters.outletId!));
+    }
+    return list.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  }
+
+  const db = getSupabaseAdmin();
+  let query = db
+    .from('owner_expenses')
+    .select('*')
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (filters?.fromDate) query = query.gte('date', filters.fromDate);
+  if (filters?.toDate) query = query.lte('date', filters.toDate);
+  if (filters?.category && filters.category !== 'all') query = query.eq('category', filters.category);
+
+  const { data, error } = await query;
+  if (error) {
+    if (error.message.includes('owner_expenses')) {
+      return [];
+    }
+    throw new Error(error.message);
+  }
+
+  let rows: OwnerExpenseRecord[] = (data || []).map((r: any) => ({
+    id: String(r.id),
+    date: String(r.date),
+    category: String(r.category || 'Belanja Bahan'),
+    outletIds: Array.isArray(r.outlet_ids) ? r.outlet_ids.map(String) : [],
+    description: String(r.description || ''),
+    amount: Number(r.amount || 0),
+    paymentMethod: String(r.payment_method || 'Transfer'),
+    notes: String(r.notes || ''),
+    createdAt: String(r.created_at || ''),
+  }));
+
+  if (filters?.outletId && filters.outletId !== 'all') {
+    rows = rows.filter((r) => r.outletIds.includes(filters.outletId!));
+  }
+  return rows;
+}
+
+export async function createOwnerExpense(input: {
+  date: string;
+  category: string;
+  outletIds: string[];
+  description: string;
+  amount: number;
+  paymentMethod: string;
+  notes?: string;
+}): Promise<OwnerExpenseRecord> {
+  const cleanOutlets = [...new Set(input.outletIds.map((x) => String(x).trim()).filter(Boolean))];
+  if (cleanOutlets.length === 0) {
+    throw new Error('Pilih minimal satu outlet untuk pengeluaran ini.');
+  }
+  const cleanAmount = Math.round(Number(input.amount || 0));
+  if (!Number.isFinite(cleanAmount) || cleanAmount <= 0) {
+    throw new Error('Nominal pengeluaran harus lebih dari 0.');
+  }
+
+  const nowIso = new Date().toISOString();
+  if (isLocalDbEnabled()) {
+    const local = readLocalDb();
+    const record: OwnerExpenseRecord = {
+      id: crypto.randomUUID(),
+      date: input.date,
+      category: input.category,
+      outletIds: cleanOutlets,
+      description: input.description,
+      amount: cleanAmount,
+      paymentMethod: input.paymentMethod || 'Transfer',
+      notes: input.notes || '',
+      createdAt: nowIso,
+    };
+    local.ownerExpenses = [record, ...(local.ownerExpenses || [])];
+    writeLocalDb(local);
+    return record;
+  }
+
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from('owner_expenses')
+    .insert({
+      date: input.date,
+      category: input.category,
+      outlet_ids: cleanOutlets,
+      description: input.description,
+      amount: cleanAmount,
+      payment_method: input.paymentMethod || 'Transfer',
+      notes: input.notes || '',
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    if (error.message.includes('owner_expenses')) {
+      throw new Error(
+        'Tabel owner_expenses belum ada di Supabase. Jalankan SQL pembuatan tabel owner_expenses dari supabase/schema.sql di Supabase SQL Editor.'
+      );
+    }
+    throw new Error(error.message);
+  }
+
+  return {
+    id: String(data.id),
+    date: String(data.date),
+    category: String(data.category || 'Belanja Bahan'),
+    outletIds: Array.isArray(data.outlet_ids) ? data.outlet_ids.map(String) : cleanOutlets,
+    description: String(data.description || ''),
+    amount: Number(data.amount || 0),
+    paymentMethod: String(data.payment_method || 'Transfer'),
+    notes: String(data.notes || ''),
+    createdAt: String(data.created_at || nowIso),
+  };
+}
+
+export async function deleteOwnerExpense(id: string): Promise<void> {
+  if (!id) throw new Error('ID pengeluaran tidak valid.');
+  if (isLocalDbEnabled()) {
+    const local = readLocalDb();
+    local.ownerExpenses = (local.ownerExpenses || []).filter((e) => e.id !== id);
+    writeLocalDb(local);
+    return;
+  }
+
+  const db = getSupabaseAdmin();
+  const { error } = await db.from('owner_expenses').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }
