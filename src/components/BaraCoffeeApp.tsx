@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getLocalDateStr } from '@/lib/calc';
 import type { AppSettingsPublic, EmployeePublic, OutletPublic, UserRole } from '@/lib/types';
 import LoginView from './LoginView';
@@ -209,26 +209,129 @@ export default function BaraCoffeeApp() {
     showToast('Akses dikunci.', 'info');
   }
 
-  const toastDotCls =
+  const lastActivityRef = useRef<number>(Date.now());
+  const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 menit tidak aktif
+
+  useEffect(() => {
+    if (!authenticated) return;
+    lastActivityRef.current = Date.now();
+
+    const bumpActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    const lockForInactivity = async () => {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch {
+        // ignore network error during auto-lock
+      }
+      setHasUnsavedShiftChanges(false);
+      setCurrentEmployee(null);
+      setTodayAttendanceStatus(null);
+      setAuthenticated(false);
+      showToast('Sesi terkunci otomatis karena tidak aktif selama 15 menit.', 'warning');
+    };
+
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((ev) => window.addEventListener(ev, bumpActivity, { passive: true }));
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastActivityRef.current >= IDLE_TIMEOUT_MS) {
+        lockForInactivity();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const interval = window.setInterval(() => {
+      if (Date.now() - lastActivityRef.current >= IDLE_TIMEOUT_MS) {
+        lockForInactivity();
+      }
+    }, 30_000);
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, bumpActivity));
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.clearInterval(interval);
+    };
+  }, [authenticated, showToast]);
+
+  const toastMeta =
     toast?.type === 'success'
-      ? 'bg-[var(--success)]'
+      ? {
+          title: 'Berhasil',
+          ring: 'border-[var(--success)]/35',
+          badge: 'bg-emerald-50 text-[var(--success)]',
+          icon: (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          ),
+        }
       : toast?.type === 'warning'
-        ? 'bg-[var(--warning)]'
+        ? {
+            title: 'Pengingat',
+            ring: 'border-[var(--warning)]/45',
+            badge: 'bg-amber-50 text-[var(--warning)]',
+            icon: (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            ),
+          }
         : toast?.type === 'error'
-          ? 'bg-[var(--error)]'
-          : 'bg-[var(--primary)]';
+          ? {
+              title: 'Gagal',
+              ring: 'border-[var(--error)]/40',
+              badge: 'bg-red-50 text-[var(--error)]',
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+              ),
+            }
+          : {
+              title: 'Info',
+              ring: 'border-[var(--primary)]/30',
+              badge: 'bg-[var(--secondary)] text-[var(--primary)]',
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+              ),
+            };
 
   const toastNode = toast ? (
     <div
       onClick={() => setToast(null)}
       role="status"
-      className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-md px-4 py-3 rounded-xl bg-[var(--card)] border-2 border-[var(--border)] shadow-2xl text-xs sm:text-sm font-medium flex items-center justify-between gap-3 cursor-pointer"
+      className={`animate-toast-in fixed z-50 top-4 sm:top-5 left-1/2 w-[calc(100%-2rem)] max-w-md px-3.5 py-3 rounded-2xl bg-white/95 backdrop-blur-md border ${toastMeta.ring} shadow-[0_14px_34px_-8px_rgba(1,38,105,0.22)] flex items-center justify-between gap-3 cursor-pointer`}
     >
-      <div className="flex items-center gap-2.5 min-w-0">
-        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${toastDotCls}`} />
-        <span className="leading-snug">{toast.msg}</span>
+      <div className="flex items-center gap-3 min-w-0">
+        <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${toastMeta.badge}`}>
+          {toastMeta.icon}
+        </span>
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)] leading-none mb-1">
+            {toastMeta.title}
+          </div>
+          <div className="text-xs sm:text-[13px] font-medium text-[var(--foreground)] leading-snug">
+            {toast.msg}
+          </div>
+        </div>
       </div>
-      <span className="text-[var(--muted-foreground)] text-xs shrink-0">&times;</span>
+      <span
+        aria-label="Tutup notifikasi"
+        className="w-6 h-6 rounded-full bg-[var(--background)] hover:bg-[var(--secondary)] text-[var(--muted-foreground)] flex items-center justify-center text-xs shrink-0 transition-colors"
+      >
+        &times;
+      </span>
     </div>
   ) : null;
 

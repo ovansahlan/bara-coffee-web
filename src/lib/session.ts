@@ -4,7 +4,7 @@ import { isLocalDbEnabled } from './local-db';
 import type { SessionPayload } from './types';
 
 export const SESSION_COOKIE_NAME = 'bara_coffee_session';
-const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 hari
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12; // 12 jam
 
 function getSecret(): string {
   const secret =
